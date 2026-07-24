@@ -80,9 +80,7 @@ fn load_cjk_into(fonts: &mut FontDefinitions) -> Option<String> {
         let path = font_path(file);
         if let Some(data) = read_plain_ttf(&[path.clone()]) {
             info!("UI font (CJK): {} ({})", name, path.display());
-            fonts
-                .font_data
-                .insert((*name).to_string(), Arc::new(data));
+            fonts.font_data.insert((*name).to_string(), Arc::new(data));
             return Some((*name).to_string());
         }
     }

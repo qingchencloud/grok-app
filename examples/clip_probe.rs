@@ -8,7 +8,10 @@ use grok_app::attachments;
 
 fn main() {
     println!("=== GrokApp clipboard probe ===");
-    println!("hint (image formats advertised) = {}", attachments::clipboard_has_image_hint());
+    println!(
+        "hint (image formats advertised) = {}",
+        attachments::clipboard_has_image_hint()
+    );
 
     match attachments::from_clipboard_ex() {
         Ok(Some(img)) => {
@@ -28,7 +31,7 @@ fn main() {
     {
         use clipboard_win::formats::{self, Unicode};
         use clipboard_win::{
-            count_formats, is_format_avail, register_format, raw, Clipboard, EnumFormats, Getter,
+            count_formats, is_format_avail, raw, register_format, Clipboard, EnumFormats, Getter,
         };
 
         match Clipboard::new_attempts(10) {
@@ -52,7 +55,11 @@ fn main() {
                 );
                 for name in ["PNG", "JFIF", "JPEG", "GIF", "HTML Format"] {
                     if let Some(f) = register_format(name) {
-                        println!("  named {name:?} id={} avail={}", f.get(), is_format_avail(f.get()));
+                        println!(
+                            "  named {name:?} id={} avail={}",
+                            f.get(),
+                            is_format_avail(f.get())
+                        );
                     }
                 }
 
@@ -97,7 +104,9 @@ fn main() {
             }
             Err(e) => {
                 println!("OpenClipboard failed: {e}");
-                println!("(another app may be holding the clipboard — close Snipping Tool / retry)");
+                println!(
+                    "(another app may be holding the clipboard — close Snipping Tool / retry)"
+                );
             }
         }
     }

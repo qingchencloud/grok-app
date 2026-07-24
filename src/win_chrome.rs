@@ -19,9 +19,7 @@ fn apply_titlebar_theme_win(dark: bool) {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, GetForegroundWindow, IsWindow,
-    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{FindWindowW, GetForegroundWindow, IsWindow};
 
     // DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Win10 1903+)
     const DWMWA_USE_IMMERSIVE_DARK_MODE: u32 = 20;

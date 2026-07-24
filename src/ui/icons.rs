@@ -42,11 +42,7 @@ fn logo_texture(ctx: &egui::Context) -> TextureHandle {
         return tex;
     }
     let color = logo_color_image();
-    let tex = ctx.load_texture(
-        "grok_brand_logo_v2",
-        color,
-        egui::TextureOptions::LINEAR,
-    );
+    let tex = ctx.load_texture("grok_brand_logo_v2", color, egui::TextureOptions::LINEAR);
     ctx.data_mut(|d| d.insert_temp(id, tex.clone()));
     tex
 }
@@ -138,7 +134,11 @@ pub fn user_avatar_ex(ui: &mut Ui, size: f32, letter: &str, image_path: Option<&
             },
         ),
     );
-    let glyph = if letter.is_empty() { crate::i18n::t().me } else { letter };
+    let glyph = if letter.is_empty() {
+        crate::i18n::t().me
+    } else {
+        letter
+    };
     let ch: String = glyph.chars().take(1).collect();
     painter.text(
         rect.center(),
@@ -179,7 +179,11 @@ fn load_user_avatar_texture(ctx: &egui::Context, path: &str) -> Option<TextureHa
     let mut square = image::RgbaImage::new(side as u32, side as u32);
     for yy in 0..side {
         for xx in 0..side {
-            square.put_pixel(xx as u32, yy as u32, *img.get_pixel((x0 + xx) as u32, (y0 + yy) as u32));
+            square.put_pixel(
+                xx as u32,
+                yy as u32,
+                *img.get_pixel((x0 + xx) as u32, (y0 + yy) as u32),
+            );
         }
     }
     // Downscale if huge (keep UI snappy)
@@ -211,8 +215,7 @@ fn stroke_for(rect: Rect, color: Color32) -> Stroke {
 
 fn paint_icon_bg(ui: &mut Ui, rect: Rect, hovered: bool) {
     if hovered {
-        ui.painter()
-            .rect_filled(rect, 6.0, theme::HOVER());
+        ui.painter().rect_filled(rect, 6.0, theme::HOVER());
     }
 }
 
@@ -241,7 +244,10 @@ fn arc_pts(center: Pos2, rad: f32, start_deg: f32, end_deg: f32, steps: usize) -
     for i in 0..=steps {
         let t = i as f32 / steps as f32;
         let a = (start_deg + (end_deg - start_deg) * t).to_radians();
-        pts.push(Pos2::new(center.x + a.cos() * rad, center.y + a.sin() * rad));
+        pts.push(Pos2::new(
+            center.x + a.cos() * rad,
+            center.y + a.sin() * rad,
+        ));
     }
     pts
 }
@@ -336,10 +342,8 @@ fn draw_kind(ui: &mut Ui, kind: IconKind, rect: Rect, color: Color32) {
         }
 
         IconKind::Sidebar | IconKind::SidebarOpen => {
-            let body = Rect::from_min_max(
-                Pos2::new(nx(0.12), ny(0.14)),
-                Pos2::new(nx(0.88), ny(0.86)),
-            );
+            let body =
+                Rect::from_min_max(Pos2::new(nx(0.12), ny(0.14)), Pos2::new(nx(0.88), ny(0.86)));
             painter.rect_stroke(body, 2.2, s, egui::StrokeKind::Middle);
             let x = body.left() + body.width() * 0.34;
             line_cap(
@@ -395,7 +399,9 @@ fn draw_kind(ui: &mut Ui, kind: IconKind, rect: Rect, color: Color32) {
             let body_bl = Pos2::new(nx(0.12), ny(0.78));
             poly_cap(
                 painter,
-                &[tab_bl, tab_tl, tab_tr, tab_br, body_br, body_tr, body_bl, tab_bl],
+                &[
+                    tab_bl, tab_tl, tab_tr, tab_br, body_br, body_tr, body_bl, tab_bl,
+                ],
                 s,
             );
         }
@@ -458,7 +464,12 @@ fn draw_kind(ui: &mut Ui, kind: IconKind, rect: Rect, color: Color32) {
                 Stroke::NONE,
             ));
             // fold line
-            line_cap(painter, mid, tip, Stroke::new(s.width * 0.7, color.gamma_multiply(0.5)));
+            line_cap(
+                painter,
+                mid,
+                tip,
+                Stroke::new(s.width * 0.7, color.gamma_multiply(0.5)),
+            );
         }
 
         IconKind::Logs => {
@@ -466,12 +477,7 @@ fn draw_kind(ui: &mut Ui, kind: IconKind, rect: Rect, color: Color32) {
             for i in 0..3 {
                 let y = ny(0.28 + i as f32 * 0.22);
                 painter.circle_filled(Pos2::new(nx(0.20), y), s.width * 0.55, color);
-                line_cap(
-                    painter,
-                    Pos2::new(nx(0.34), y),
-                    Pos2::new(nx(0.82), y),
-                    s,
-                );
+                line_cap(painter, Pos2::new(nx(0.34), y), Pos2::new(nx(0.82), y), s);
             }
         }
 

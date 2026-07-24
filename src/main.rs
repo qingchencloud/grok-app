@@ -140,15 +140,14 @@ fn main() {
         Box::new(|cc| {
             append_crash_log("startup: CreationContext");
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            let app = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                GrokApp::new(cc)
-            })) {
-                Ok(app) => app,
-                Err(e) => {
-                    append_crash_log(&format!("GrokApp::new panicked: {e:?}"));
-                    return Err(format!("init panic: {e:?}").into());
-                }
-            };
+            let app =
+                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| GrokApp::new(cc))) {
+                    Ok(app) => app,
+                    Err(e) => {
+                        append_crash_log(&format!("GrokApp::new panicked: {e:?}"));
+                        return Err(format!("init panic: {e:?}").into());
+                    }
+                };
             append_crash_log("startup: GrokApp ready — window should be visible");
             Ok(Box::new(app) as Box<dyn eframe::App>)
         }),

@@ -2,15 +2,14 @@ use crate::acp::parse::build_history_bootstrap;
 use crate::acp::{AcpClient, AgentEvent, ChatImage, PermissionOption, TimelineItem};
 use crate::attachments::{self, PendingImage};
 use crate::config::{
-    effort_label, is_cli_authenticated, normalize_effort, resolve_grok_binary, AppConfig,
-    MODELS,
+    effort_label, is_cli_authenticated, normalize_effort, resolve_grok_binary, AppConfig, MODELS,
 };
 use crate::local::install::{install_cli, InstallProgress};
 use crate::local::{
     archive_session, delete_from_app, group_sessions_by_project, import_cli_session,
-    list_active_sessions, list_archived_sessions, list_cli_import_candidates, load_session_timeline,
-    normalize_project_key, rename_in_index, rename_session, restore_session, sync_record_from_disk,
-    touch_session, LocalSession,
+    list_active_sessions, list_archived_sessions, list_cli_import_candidates,
+    load_session_timeline, normalize_project_key, rename_in_index, rename_session, restore_session,
+    sync_record_from_disk, touch_session, LocalSession,
 };
 use crate::session_store::{PendingPermission, SessionStore, TurnPhase};
 use crate::stream::SmoothStream;
@@ -25,7 +24,9 @@ use crate::ui::widgets::{
     SessionActivity,
 };
 use eframe::egui;
-use egui::{Align, Color32, Frame, Key, Layout, Margin, RichText, ScrollArea, Stroke, TextEdit, Ui};
+use egui::{
+    Align, Color32, Frame, Key, Layout, Margin, RichText, ScrollArea, Stroke, TextEdit, Ui,
+};
 use egui_commonmark::CommonMarkCache;
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -166,8 +167,7 @@ impl GrokApp {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
 
         // App index only — never auto-dump ~/.grok/sessions into the sidebar
-        let local_sessions =
-            std::panic::catch_unwind(list_active_sessions).unwrap_or_default();
+        let local_sessions = std::panic::catch_unwind(list_active_sessions).unwrap_or_default();
         let settings = SettingsState::new(&config);
 
         // Sync always_approve from CLI config.toml if present
@@ -252,14 +252,11 @@ impl GrokApp {
         if !cli_ok {
             app.settings.open = true;
             app.settings.tab = SettingsTab::Cli;
-            app.error_banner =
-                Some(crate::i18n::t().cli_missing_banner.into());
+            app.error_banner = Some(crate::i18n::t().cli_missing_banner.into());
         }
 
         if !is_cli_authenticated() {
-            app.logs.push(
-                crate::i18n::t().auth_missing_hint.into(),
-            );
+            app.logs.push(crate::i18n::t().auth_missing_hint.into());
         }
 
         app.frame_count = 0;
@@ -333,9 +330,7 @@ impl GrokApp {
         }
         // Clear live-tool chip when no running tool rows remain (display only).
         let any_running = self.timeline.iter().any(|i| match i {
-            TimelineItem::Tool { status, .. } => {
-                crate::acp::parse::tool_status_is_running(status)
-            }
+            TimelineItem::Tool { status, .. } => crate::acp::parse::tool_status_is_running(status),
             _ => false,
         });
         if !any_running {
@@ -407,7 +402,9 @@ impl GrokApp {
         }
         self.settings.installing = true;
         self.settings.install_logs.clear();
-        self.settings.install_logs.push(crate::i18n::t().install_start.into());
+        self.settings
+            .install_logs
+            .push(crate::i18n::t().install_start.into());
         self.settings.tab = SettingsTab::Cli;
         self.settings.open = true;
         let (tx, rx) = std_mpsc::channel();
@@ -547,8 +544,7 @@ impl GrokApp {
         self.config.expand_tools = s.expand_tools;
         self.config.enter_to_send = s.enter_to_send;
         self.config.set_extra_args_line(&s.extra_args);
-        self.config.user_display_name =
-            AppConfig::sanitize_display_name(&s.user_display_name);
+        self.config.user_display_name = AppConfig::sanitize_display_name(&s.user_display_name);
         self.config.user_avatar_path = s.user_avatar_path.trim().to_string();
         // Keep settings fields in sync with sanitized values
         self.settings.user_display_name = self.config.user_display_name.clone();
@@ -722,7 +718,9 @@ impl GrokApp {
     }
 
     fn context_label(&self) -> String {
-        let used = self.context_used.unwrap_or_else(|| self.estimate_context_tokens());
+        let used = self
+            .context_used
+            .unwrap_or_else(|| self.estimate_context_tokens());
         match self.resolved_context_max() {
             Some(max) => format_tokens(used, max),
             None => format!("{}·?", format_tokens_one(used)),
@@ -927,7 +925,10 @@ impl GrokApp {
         for (i, img) in images.iter_mut().enumerate() {
             let n = (i + 1) as u32;
             if let Err(e) = img.ensure_on_disk(n) {
-                self.error_banner = Some(format!("{} (#{n}): {e:#}", crate::i18n::t().attach_persist_failed));
+                self.error_banner = Some(format!(
+                    "{} (#{n}): {e:#}",
+                    crate::i18n::t().attach_persist_failed
+                ));
                 // put remaining back
                 self.pending_images = images;
                 return;
@@ -1048,8 +1049,7 @@ impl GrokApp {
             n as usize,
         );
         if !path_hint.is_empty() {
-            self.logs
-                .push(format!("attachment #{n} → {path_hint}"));
+            self.logs.push(format!("attachment #{n} → {path_hint}"));
         }
     }
 
@@ -1221,7 +1221,10 @@ impl GrokApp {
 
     fn pick_image_files(&mut self) {
         let files = rfd::FileDialog::new()
-            .add_filter(crate::i18n::t().images_filter, &["png", "jpg", "jpeg", "gif", "webp", "bmp"])
+            .add_filter(
+                crate::i18n::t().images_filter,
+                &["png", "jpg", "jpeg", "gif", "webp", "bmp"],
+            )
             .pick_files();
         if let Some(paths) = files {
             for p in paths {
@@ -1236,20 +1239,17 @@ impl GrokApp {
     }
 
     fn handle_file_drops(&mut self, ctx: &egui::Context) {
-        let drops: Vec<(Option<std::path::PathBuf>, Option<std::sync::Arc<[u8]>>, String)> =
-            ctx.input(|i| {
-                i.raw
-                    .dropped_files
-                    .iter()
-                    .map(|f| {
-                        (
-                            f.path.clone(),
-                            f.bytes.clone(),
-                            f.name.clone(),
-                        )
-                    })
-                    .collect()
-            });
+        let drops: Vec<(
+            Option<std::path::PathBuf>,
+            Option<std::sync::Arc<[u8]>>,
+            String,
+        )> = ctx.input(|i| {
+            i.raw
+                .dropped_files
+                .iter()
+                .map(|f| (f.path.clone(), f.bytes.clone(), f.name.clone()))
+                .collect()
+        });
         for (path, bytes, name) in drops {
             let result = if let Some(p) = path {
                 attachments::from_path(&p)
@@ -1265,7 +1265,11 @@ impl GrokApp {
         }
     }
 
-    fn ensure_thumb(&mut self, ctx: &egui::Context, img: &PendingImage) -> Option<egui::TextureHandle> {
+    fn ensure_thumb(
+        &mut self,
+        ctx: &egui::Context,
+        img: &PendingImage,
+    ) -> Option<egui::TextureHandle> {
         if let Some(t) = self.thumb_textures.get(&img.id) {
             return Some(t.clone());
         }
@@ -1407,8 +1411,7 @@ impl GrokApp {
                 return;
             }
         };
-        self.logs
-            .push(format!("启动登录: {} login", bin.display()));
+        self.logs.push(format!("启动登录: {} login", bin.display()));
         let _ = std::process::Command::new(bin).arg("login").spawn();
         self.status = crate::i18n::t().status_login_opened.into();
     }
@@ -1443,8 +1446,7 @@ impl GrokApp {
                     // Refresh PID after handshake (client already stored)
                     self.agent_pid = self.client.lock().as_ref().and_then(|c| c.child_pid());
                     self.status = crate::i18n::t().status_connected.into();
-                    self.logs
-                        .push(format!("已连接: {}", self.agent_label));
+                    self.logs.push(format!("已连接: {}", self.agent_label));
                 }
                 AgentEvent::Usage { used, max, note } => {
                     if used.is_some() {
@@ -1532,10 +1534,9 @@ impl GrokApp {
                     // CLI often reuses toolCallId for sequential tools. If the last
                     // row for this id is already terminal (or title changed), push a
                     // new row so we don't clobber history / leave wrong state.
-                    let existing = self
-                        .timeline
-                        .iter()
-                        .rposition(|i| matches!(i, TimelineItem::Tool { id: tid, .. } if *tid == id));
+                    let existing = self.timeline.iter().rposition(
+                        |i| matches!(i, TimelineItem::Tool { id: tid, .. } if *tid == id),
+                    );
                     let mut push_new = true;
                     if let Some(idx) = existing {
                         if let TimelineItem::Tool {
@@ -1729,9 +1730,8 @@ impl GrokApp {
                     // With always_approve: never block the agent on a modal.
                     if self.config.always_approve {
                         if let Some(opt) = Self::pick_allow_option(&options) {
-                            self.logs.push(format!(
-                                "自动批准权限: {title} ({tool_call_id}) → {opt}"
-                            ));
+                            self.logs
+                                .push(format!("自动批准权限: {title} ({tool_call_id}) → {opt}"));
                             self.status = crate::i18n::auto_approved(&title);
                             auto_perms.push((request_id, opt));
                             continue;
@@ -1806,9 +1806,8 @@ impl GrokApp {
                     if let Some(g) = turn_gen {
                         if !self.store.is_turn_gen(g) && self.store.busy() {
                             let cur = self.store.turn_gen();
-                            self.logs.push(format!(
-                                "忽略过期 Error gen={g} (current={cur}): {message}"
-                            ));
+                            self.logs
+                                .push(format!("忽略过期 Error gen={g} (current={cur}): {message}"));
                             continue;
                         }
                         if !self.store.busy() && self.store.turn_gen() != g {
@@ -1888,7 +1887,8 @@ impl GrokApp {
                             }
                         }
                         self.scroll_to_bottom = true;
-                        self.logs.push(format!("已加载会话 {sid}（历史不重复渲染）"));
+                        self.logs
+                            .push(format!("已加载会话 {sid}（历史不重复渲染）"));
                     } else if message.starts_with("BOOTSTRAP_NEEDED:") {
                         self.needs_history_bootstrap = true;
                         self.suppress_stream_updates = false;
@@ -1936,12 +1936,12 @@ impl GrokApp {
         // Snap any open smooth buffer into the last assistant text before closing.
         if let Some(id) = self.store.open_assistant_id_owned() {
             if !self.smooth_assistant.target.is_empty() {
-                if let Some(TimelineItem::AssistantMessage { text, streaming, .. }) =
-                    self.timeline.iter_mut().find(|i| match i {
-                        TimelineItem::AssistantMessage { id: mid, .. } => *mid == id,
-                        _ => false,
-                    })
-                {
+                if let Some(TimelineItem::AssistantMessage {
+                    text, streaming, ..
+                }) = self.timeline.iter_mut().find(|i| match i {
+                    TimelineItem::AssistantMessage { id: mid, .. } => *mid == id,
+                    _ => false,
+                }) {
                     // Prefer full target if we were mid-drip
                     if self.smooth_assistant.target.len() > text.len()
                         && self.smooth_assistant.target.starts_with(text.as_str())
@@ -2062,7 +2062,12 @@ impl GrokApp {
         }
         ui.add_space(6.0);
         // Session search
-        let _ = search_field(ui, "sess_search", &mut self.session_filter, crate::i18n::t().search_sessions);
+        let _ = search_field(
+            ui,
+            "sess_search",
+            &mut self.session_filter,
+            crate::i18n::t().search_sessions,
+        );
         ui.add_space(4.0);
         // Quiet utilities — centered under search (App-first, not primary CTAs)
         ui.horizontal(|ui| {
@@ -2139,19 +2144,25 @@ impl GrokApp {
                         egui::vec2(head_w, theme::TREE_L1_H),
                         Layout::left_to_right(Align::Center),
                         |ui| {
-                            if tree_section_head(ui, crate::i18n::t().projects, projects_open).clicked() {
+                            if tree_section_head(ui, crate::i18n::t().projects, projects_open)
+                                .clicked()
+                            {
                                 if projects_open {
-                                    self.collapsed_projects
-                                        .insert("__section:projects".into());
+                                    self.collapsed_projects.insert("__section:projects".into());
                                 } else {
-                                    self.collapsed_projects
-                                        .remove("__section:projects");
+                                    self.collapsed_projects.remove("__section:projects");
                                 }
                             }
                         },
                     );
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if widgets::icon_btn(ui, IconKind::Refresh, crate::i18n::t().refresh_sessions).clicked() {
+                        if widgets::icon_btn(
+                            ui,
+                            IconKind::Refresh,
+                            crate::i18n::t().refresh_sessions,
+                        )
+                        .clicked()
+                        {
                             self.refresh_sessions();
                         }
                     });
@@ -2187,13 +2198,16 @@ impl GrokApp {
                 }
 
                 for (gi, g) in groups.iter().enumerate() {
-                    let is_current = !current_project.is_empty()
-                        && g.key.eq_ignore_ascii_case(&current_project);
+                    let is_current =
+                        !current_project.is_empty() && g.key.eq_ignore_ascii_case(&current_project);
                     // Expand: current project by default; user can toggle.
                     // `__exp:key` = user forced expand; `key` = user forced collapse.
                     let collapsed = if self.collapsed_projects.contains(&g.key) {
                         true
-                    } else if self.collapsed_projects.contains(&format!("__exp:{}", g.key)) {
+                    } else if self
+                        .collapsed_projects
+                        .contains(&format!("__exp:{}", g.key))
+                    {
                         false
                     } else if is_current {
                         false
@@ -2218,7 +2232,14 @@ impl GrokApp {
                                 new_in_project = Some(g.path_display.clone());
                                 ui.close_menu();
                             }
-                            if ui.button(if collapsed { crate::i18n::t().expand } else { crate::i18n::t().collapse }).clicked() {
+                            if ui
+                                .button(if collapsed {
+                                    crate::i18n::t().expand
+                                } else {
+                                    crate::i18n::t().collapse
+                                })
+                                .clicked()
+                            {
                                 toggle_project = Some((g.key.clone(), !collapsed));
                                 ui.close_menu();
                             }
@@ -2248,11 +2269,7 @@ impl GrokApp {
                                             let activity = if selected && self.pending_connect {
                                                 SessionActivity::Connecting
                                             } else {
-                                                self.store.sidebar_activity(
-                                                    &s.id,
-                                                    selected,
-                                                    false,
-                                                )
+                                                self.store.sidebar_activity(&s.id, selected, false)
                                             };
                                             let title = if s.title.is_empty() {
                                                 crate::i18n::t().untitled
@@ -2264,9 +2281,8 @@ impl GrokApp {
                                             } else {
                                                 None
                                             };
-                                            let resp = session_row(
-                                                ui, title, meta, selected, activity,
-                                            );
+                                            let resp =
+                                                session_row(ui, title, meta, selected, activity);
                                             if resp.clicked() {
                                                 open_sess = Some(s.clone());
                                             }
@@ -2288,8 +2304,10 @@ impl GrokApp {
                                                 if ui
                                                     .add(
                                                         egui::Button::new(
-                                                            RichText::new(crate::i18n::t().delete_index_disk)
-                                                                .color(theme::DANGER()),
+                                                            RichText::new(
+                                                                crate::i18n::t().delete_index_disk,
+                                                            )
+                                                            .color(theme::DANGER()),
                                                         )
                                                         .fill(Color32::TRANSPARENT),
                                                     )
@@ -2425,13 +2443,11 @@ impl GrokApp {
                     ui.spacing_mut().item_spacing.x = 2.0;
                     let seg = |ui: &mut Ui, active: bool, label: &str| {
                         ui.add(
-                            egui::Button::new(
-                                RichText::new(label).size(11.5).color(if active {
-                                    theme::TEXT()
-                                } else {
-                                    theme::TEXT_3()
-                                }),
-                            )
+                            egui::Button::new(RichText::new(label).size(11.5).color(if active {
+                                theme::TEXT()
+                            } else {
+                                theme::TEXT_3()
+                            }))
                             .fill(if active {
                                 if theme::is_dark() {
                                     Color32::from_rgba_unmultiplied(255, 255, 255, 28)
@@ -2446,8 +2462,10 @@ impl GrokApp {
                             .min_size(egui::vec2(seg_w - 2.0, 26.0)),
                         )
                     };
-                    let day = seg(ui, !is_dark, crate::i18n::t().day).on_hover_text(crate::i18n::t().day_tip);
-                    let night = seg(ui, is_dark, crate::i18n::t().night).on_hover_text(crate::i18n::t().night_tip);
+                    let day = seg(ui, !is_dark, crate::i18n::t().day)
+                        .on_hover_text(crate::i18n::t().day_tip);
+                    let night = seg(ui, is_dark, crate::i18n::t().night)
+                        .on_hover_text(crate::i18n::t().night_tip);
                     if day.clicked() && is_dark {
                         self.config.dark_mode = false;
                         theme::apply(ctx, false);
@@ -2477,10 +2495,13 @@ impl GrokApp {
             ui.add_space(edge);
 
             if !self.sidebar_open {
-                if widgets::icon_btn(ui, IconKind::Sidebar, crate::i18n::t().show_sidebar).clicked() {
+                if widgets::icon_btn(ui, IconKind::Sidebar, crate::i18n::t().show_sidebar).clicked()
+                {
                     self.sidebar_open = true;
                 }
-            } else if widgets::icon_btn(ui, IconKind::ChevronLeft, crate::i18n::t().hide_sidebar).clicked() {
+            } else if widgets::icon_btn(ui, IconKind::ChevronLeft, crate::i18n::t().hide_sidebar)
+                .clicked()
+            {
                 self.sidebar_open = false;
             }
 
@@ -2501,12 +2522,8 @@ impl GrokApp {
                 } else {
                     Color32::WHITE
                 };
-                v.selection.bg_fill = Color32::from_rgba_unmultiplied(
-                    p.accent.r(),
-                    p.accent.g(),
-                    p.accent.b(),
-                    28,
-                );
+                v.selection.bg_fill =
+                    Color32::from_rgba_unmultiplied(p.accent.r(), p.accent.g(), p.accent.b(), 28);
 
                 let mut model = self.config.model.clone();
                 let before_model = model.clone();
@@ -2516,13 +2533,15 @@ impl GrokApp {
                     widgets::truncate_chars(&model, 12)
                 };
                 egui::ComboBox::from_id_salt("top_model")
-                    .selected_text(
-                        RichText::new(model_label).size(12.5).color(theme::TEXT()),
-                    )
+                    .selected_text(RichText::new(model_label).size(12.5).color(theme::TEXT()))
                     .width(112.0)
                     .height(theme::BTN_H_SM)
                     .show_ui(ui, |ui| {
-                        ui.label(RichText::new(crate::i18n::t().model).size(11.0).color(theme::TEXT_3()));
+                        ui.label(
+                            RichText::new(crate::i18n::t().model)
+                                .size(11.0)
+                                .color(theme::TEXT_3()),
+                        );
                         for m in MODELS {
                             ui.selectable_value(&mut model, (*m).to_string(), *m);
                         }
@@ -2534,12 +2553,10 @@ impl GrokApp {
                 if model != before_model {
                     self.config.model = model;
                     crate::models_cache::invalidate_models_cache();
-                    self.context_max =
-                        crate::models_cache::context_window_for(&self.config.model);
+                    self.context_max = crate::models_cache::context_window_for(&self.config.model);
                     self.context_used = None;
                     let _ = self.config.save();
-                    need_reconnect =
-                        self.store.is_connected() || self.store.is_connecting();
+                    need_reconnect = self.store.is_connected() || self.store.is_connecting();
                 }
 
                 let mut effort = normalize_effort(&self.config.effort).to_string();
@@ -2567,8 +2584,7 @@ impl GrokApp {
                 if effort != before_effort {
                     self.config.effort = effort;
                     let _ = self.config.save();
-                    need_reconnect =
-                        self.store.is_connected() || self.store.is_connecting();
+                    need_reconnect = self.store.is_connected() || self.store.is_connecting();
                 }
             });
 
@@ -2576,7 +2592,11 @@ impl GrokApp {
             if bar_w > 720.0 {
                 let cwd_short = widgets::path_short(&self.config.cwd, 16);
                 ui.label(RichText::new(cwd_short).size(12.0).color(theme::TEXT_3()))
-                    .on_hover_text(format!("{}\n{}", crate::i18n::t().working_dir, self.config.cwd));
+                    .on_hover_text(format!(
+                        "{}\n{}",
+                        crate::i18n::t().working_dir,
+                        self.config.cwd
+                    ));
             }
 
             // ── Session id chip ───────────────────────────────────
@@ -2596,53 +2616,67 @@ impl GrokApp {
                 ui.spacing_mut().item_spacing.x = 8.0;
 
                 // Process menu
-                ui.menu_button(RichText::new(crate::i18n::t().process).size(12.0).color(theme::TEXT_2()), |ui| {
-                    ui.set_min_width(180.0);
-                    if let Some(pid) = self.agent_pid {
-                        ui.label(
-                            RichText::new(format!("PID  {pid}"))
-                                .size(12.5)
-                                .monospace()
-                                .color(theme::TEXT()),
-                        );
-                    } else {
-                        ui.label(
-                            RichText::new(crate::i18n::t().no_agent_process)
-                                .size(12.5)
-                                .color(theme::TEXT_3()),
-                        );
-                    }
-                    if !self.agent_label.is_empty() {
-                        ui.label(
-                            RichText::new(&self.agent_label)
-                                .size(11.5)
-                                .color(theme::TEXT_3()),
-                        );
-                    }
-                    ui.separator();
-                    if ui
-                        .add_enabled(!self.store.is_connecting(), egui::Button::new(crate::i18n::t().reconnect))
-                        .clicked()
-                    {
-                        need_connect = true;
-                        ui.close_menu();
-                    }
-                    if ui
-                        .add_enabled(self.store.is_connected() || self.store.is_connecting(), egui::Button::new(crate::i18n::t().disconnect))
-                        .clicked()
-                    {
-                        need_disconnect = true;
-                        ui.close_menu();
-                    }
-                    if self.store.busy()
-                        && ui
-                            .button(RichText::new(crate::i18n::t().force_end_turn).color(theme::DANGER()))
+                ui.menu_button(
+                    RichText::new(crate::i18n::t().process)
+                        .size(12.0)
+                        .color(theme::TEXT_2()),
+                    |ui| {
+                        ui.set_min_width(180.0);
+                        if let Some(pid) = self.agent_pid {
+                            ui.label(
+                                RichText::new(format!("PID  {pid}"))
+                                    .size(12.5)
+                                    .monospace()
+                                    .color(theme::TEXT()),
+                            );
+                        } else {
+                            ui.label(
+                                RichText::new(crate::i18n::t().no_agent_process)
+                                    .size(12.5)
+                                    .color(theme::TEXT_3()),
+                            );
+                        }
+                        if !self.agent_label.is_empty() {
+                            ui.label(
+                                RichText::new(&self.agent_label)
+                                    .size(11.5)
+                                    .color(theme::TEXT_3()),
+                            );
+                        }
+                        ui.separator();
+                        if ui
+                            .add_enabled(
+                                !self.store.is_connecting(),
+                                egui::Button::new(crate::i18n::t().reconnect),
+                            )
                             .clicked()
-                    {
-                        self.force_unlock_ui(crate::i18n::t().status_force_ended);
-                        ui.close_menu();
-                    }
-                });
+                        {
+                            need_connect = true;
+                            ui.close_menu();
+                        }
+                        if ui
+                            .add_enabled(
+                                self.store.is_connected() || self.store.is_connecting(),
+                                egui::Button::new(crate::i18n::t().disconnect),
+                            )
+                            .clicked()
+                        {
+                            need_disconnect = true;
+                            ui.close_menu();
+                        }
+                        if self.store.busy()
+                            && ui
+                                .button(
+                                    RichText::new(crate::i18n::t().force_end_turn)
+                                        .color(theme::DANGER()),
+                                )
+                                .clicked()
+                        {
+                            self.force_unlock_ui(crate::i18n::t().status_force_ended);
+                            ui.close_menu();
+                        }
+                    },
+                );
 
                 if widgets::icon_btn(ui, IconKind::Logs, crate::i18n::t().logs).clicked() {
                     self.show_logs = !self.show_logs;
@@ -2651,10 +2685,7 @@ impl GrokApp {
                 // Live turn phase → single store projection (same as message rail)
                 let mut phase = self.store.turn_phase();
                 // Smooth drip still counts as generating even if cursor briefly cleared
-                if phase == TurnPhase::Idle
-                    && self.store.busy()
-                    && self.smooth_assistant.active
-                {
+                if phase == TurnPhase::Idle && self.store.busy() && self.smooth_assistant.active {
                     phase = TurnPhase::Generating;
                 }
                 let (label, dot, spinning) = if self.store.is_connecting() || self.pending_connect {
@@ -2757,12 +2788,7 @@ impl GrokApp {
                     .inner_margin(Margin::symmetric(14, 8))
                     .show(ui, |ui| {
                         ui.set_max_width(content_w);
-                        widgets::banner(
-                            ui,
-                            Color32::TRANSPARENT,
-                            &format!("⚠ {err}"),
-                            &mut closed,
-                        );
+                        widgets::banner(ui, Color32::TRANSPARENT, &format!("⚠ {err}"), &mut closed);
                     });
             });
             if closed {
@@ -2791,11 +2817,9 @@ impl GrokApp {
             if idle_stuck || long_stuck {
                 ui.add_space(8.0);
                 let msg = if idle_stuck {
-                    crate::i18n::stuck_no_output_secs(idle.map(|d| d.as_secs()).unwrap_or(0)
-                    )
+                    crate::i18n::stuck_no_output_secs(idle.map(|d| d.as_secs()).unwrap_or(0))
                 } else {
-                    crate::i18n::stuck_running_secs(total.map(|d| d.as_secs()).unwrap_or(0)
-                    )
+                    crate::i18n::stuck_running_secs(total.map(|d| d.as_secs()).unwrap_or(0))
                 };
                 ui.horizontal(|ui| {
                     ui.add_space(margin);
@@ -2829,8 +2853,12 @@ impl GrokApp {
                                 );
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     ui.spacing_mut().item_spacing.x = 8.0;
-                                    if primary_button(ui, crate::i18n::t().force_end_stuck, true).clicked() {
-                                        self.force_unlock_ui(crate::i18n::t().status_force_ended_ok);
+                                    if primary_button(ui, crate::i18n::t().force_end_stuck, true)
+                                        .clicked()
+                                    {
+                                        self.force_unlock_ui(
+                                            crate::i18n::t().status_force_ended_ok,
+                                        );
                                         self.logs.push("用户强制结束卡住的一轮".into());
                                     }
                                     if ghost_button(ui, crate::i18n::t().stop).clicked() {
@@ -2852,16 +2880,12 @@ impl GrokApp {
         egui::TopBottomPanel::bottom("composer_panel")
             .resizable(false)
             .show_separator_line(false)
-            .frame(
-                Frame::NONE
-                    .fill(theme::BG())
-                    .inner_margin(Margin {
-                        left: 0,
-                        right: 0,
-                        top: 8,
-                        bottom: 14,
-                    }),
-            )
+            .frame(Frame::NONE.fill(theme::BG()).inner_margin(Margin {
+                left: 0,
+                right: 0,
+                top: 8,
+                bottom: 14,
+            }))
             .show_inside(ui, |ui| {
                 let _ = has_thumbs;
                 ui.horizontal(|ui| {
@@ -2900,12 +2924,12 @@ impl GrokApp {
 
         // Sync smooth targets from open streams only (never from closed bubbles).
         if let Some(id) = self.store.open_assistant_id() {
-            if let Some(TimelineItem::AssistantMessage { text, streaming, .. }) =
-                self.timeline.iter().find(|i| match i {
-                    TimelineItem::AssistantMessage { id: mid, .. } => mid == id,
-                    _ => false,
-                })
-            {
+            if let Some(TimelineItem::AssistantMessage {
+                text, streaming, ..
+            }) = self.timeline.iter().find(|i| match i {
+                TimelineItem::AssistantMessage { id: mid, .. } => mid == id,
+                _ => false,
+            }) {
                 // If target diverged (segment restart), snap displayed
                 if !text.starts_with(&self.smooth_assistant.target)
                     && !self.smooth_assistant.target.starts_with(text.as_str())
@@ -2928,20 +2952,18 @@ impl GrokApp {
             }
         }
         if let Some(id) = self.store.open_thought_id() {
-            if let Some(TimelineItem::Thought { text, .. }) =
-                self.timeline.iter().find(|i| match i {
-                    TimelineItem::Thought { id: mid, .. } => mid == id,
-                    _ => false,
-                })
+            if let Some(TimelineItem::Thought { text, .. }) = self.timeline.iter().find(|i| match i
             {
+                TimelineItem::Thought { id: mid, .. } => mid == id,
+                _ => false,
+            }) {
                 if self.smooth_thought.target != *text {
                     self.smooth_thought.target = text.clone();
                 }
                 self.smooth_thought.active = self.store.busy() && self.config.smooth_stream;
             }
         }
-        let smooth_changed =
-            self.smooth_assistant.tick() || self.smooth_thought.tick();
+        let smooth_changed = self.smooth_assistant.tick() || self.smooth_thought.tick();
         // Avoid every-frame repaint while busy (kills text selection / scroll).
         // Only drip-schedule when smooth stream still has backlog.
         if smooth_changed {
@@ -2991,7 +3013,8 @@ impl GrokApp {
         }
 
         // Stick only on explicit jump / first paint at bottom — never fight user scroll.
-        let stick = scroll_to_bottom || (!empty && !self.chat_away_from_bottom && self.store.busy());
+        let stick =
+            scroll_to_bottom || (!empty && !self.chat_away_from_bottom && self.store.busy());
         let scroll_out = ScrollArea::vertical()
             .id_salt("timeline")
             .stick_to_bottom(stick && !self.chat_away_from_bottom)
@@ -3112,8 +3135,8 @@ impl GrokApp {
                                                     "↑ {}",
                                                     crate::i18n::t().jump_prev
                                                 ))
-                                                    .size(12.0)
-                                                    .color(theme::TEXT_2()),
+                                                .size(12.0)
+                                                .color(theme::TEXT_2()),
                                             )
                                             .fill(Color32::TRANSPARENT)
                                             .stroke(Stroke::NONE)
@@ -3133,8 +3156,8 @@ impl GrokApp {
                                                     "↓ {}",
                                                     crate::i18n::t().jump_next
                                                 ))
-                                                    .size(12.0)
-                                                    .color(theme::TEXT_2()),
+                                                .size(12.0)
+                                                .color(theme::TEXT_2()),
                                             )
                                             .fill(Color32::TRANSPARENT)
                                             .stroke(Stroke::NONE)
@@ -3149,11 +3172,7 @@ impl GrokApp {
                                     }
                                     // Soft gap, not a full vertical separator (was leaving a lone line at bottom)
                                     ui.add_space(6.0);
-                                    ui.label(
-                                        RichText::new("·")
-                                            .size(12.0)
-                                            .color(theme::TEXT_3()),
-                                    );
+                                    ui.label(RichText::new("·").size(12.0).color(theme::TEXT_3()));
                                     ui.add_space(4.0);
                                 }
                                 let bot = ui
@@ -3223,7 +3242,8 @@ impl GrokApp {
                 }
                 ui.add_space(12.0);
                 ui.horizontal(|ui| {
-                    if primary_button(ui, crate::i18n::t().save, !draft.trim().is_empty()).clicked() {
+                    if primary_button(ui, crate::i18n::t().save, !draft.trim().is_empty()).clicked()
+                    {
                         save = true;
                     }
                     if ghost_button(ui, crate::i18n::t().cancel).clicked() {
@@ -3302,9 +3322,7 @@ impl GrokApp {
                         ui.add_space(28.0);
                     });
                 } else {
-                    let scroll_h = (ui.available_height() - 36.0)
-                        .min(max_h - 120.0)
-                        .max(120.0);
+                    let scroll_h = (ui.available_height() - 36.0).min(max_h - 120.0).max(120.0);
                     ScrollArea::vertical()
                         .id_salt("archive_list")
                         .max_height(scroll_h)
@@ -3320,9 +3338,7 @@ impl GrokApp {
                                     ui.vertical(|ui| {
                                         ui.set_max_width((ui.available_width() - 100.0).max(80.0));
                                         ui.label(
-                                            RichText::new(title)
-                                                .size(13.0)
-                                                .color(theme::TEXT()),
+                                            RichText::new(title).size(13.0).color(theme::TEXT()),
                                         );
                                         ui.label(
                                             RichText::new(widgets::path_short(&s.cwd, 28))
@@ -3434,10 +3450,7 @@ impl GrokApp {
                 ui.set_max_width(max_w - 8.0);
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new(format!(
-                            "{} · {total}",
-                            crate::i18n::t().import_sessions
-                        ))
+                        RichText::new(format!("{} · {total}", crate::i18n::t().import_sessions))
                             .size(12.0)
                             .color(theme::TEXT_3()),
                     );
@@ -3448,7 +3461,12 @@ impl GrokApp {
                     });
                 });
                 ui.add_space(8.0);
-                let _ = search_field(ui, "import_search", &mut self.import_filter, crate::i18n::t().filter_hint);
+                let _ = search_field(
+                    ui,
+                    "import_search",
+                    &mut self.import_filter,
+                    crate::i18n::t().filter_hint,
+                );
                 ui.add_space(10.0);
                 if rows.is_empty() {
                     ui.vertical_centered(|ui| {
@@ -3466,11 +3484,8 @@ impl GrokApp {
                     });
                 } else {
                     // Group by working directory (same as main session list)
-                    let groups =
-                        group_sessions_by_project(&rows, Some(&self.config.cwd));
-                    let scroll_h = (ui.available_height() - 36.0)
-                        .min(max_h - 160.0)
-                        .max(120.0);
+                    let groups = group_sessions_by_project(&rows, Some(&self.config.cwd));
+                    let scroll_h = (ui.available_height() - 36.0).min(max_h - 160.0).max(120.0);
                     ScrollArea::vertical()
                         .id_salt("import_list")
                         .max_height(scroll_h)
@@ -3516,11 +3531,9 @@ impl GrokApp {
                                                 (ui.available_width() - 72.0).max(80.0),
                                             );
                                             ui.label(
-                                                RichText::new(widgets::truncate_chars(
-                                                    title, 34,
-                                                ))
-                                                .size(13.0)
-                                                .color(theme::TEXT()),
+                                                RichText::new(widgets::truncate_chars(title, 34))
+                                                    .size(13.0)
+                                                    .color(theme::TEXT()),
                                             );
                                             ui.label(
                                                 RichText::new(short_id(&s.id))
@@ -3623,8 +3636,7 @@ impl GrokApp {
                 .interactable(true)
                 .sense(egui::Sense::click())
                 .show(ctx, |ui| {
-                    ui.painter()
-                        .rect_filled(screen, 0.0, theme::modal_scrim());
+                    ui.painter().rect_filled(screen, 0.0, theme::modal_scrim());
                     if ui.allocate_rect(screen, egui::Sense::click()).clicked() {
                         ui.ctx().memory_mut(|m| {
                             m.data
@@ -3752,8 +3764,8 @@ impl GrokApp {
 
                         // Path validity hint
                         ui.add_space(6.0);
-                        let path_ok = !cwd.trim().is_empty()
-                            && std::path::Path::new(cwd.trim()).is_dir();
+                        let path_ok =
+                            !cwd.trim().is_empty() && std::path::Path::new(cwd.trim()).is_dir();
                         if cwd.trim().is_empty() {
                             ui.label(
                                 RichText::new(crate::i18n::t().need_project_dir)
@@ -3808,7 +3820,9 @@ impl GrokApp {
                                 cancel = true;
                             }
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                if primary_button(ui, crate::i18n::t().start_chat, path_ok).clicked() {
+                                if primary_button(ui, crate::i18n::t().start_chat, path_ok)
+                                    .clicked()
+                                {
                                     confirm = true;
                                 }
                             });
@@ -3882,8 +3896,7 @@ impl GrokApp {
                         .min(avail.y.max(120.0) / img.height as f32)
                         .min(1.0)
                         .max(0.05);
-                    let size =
-                        egui::vec2(img.width as f32 * scale, img.height as f32 * scale);
+                    let size = egui::vec2(img.width as f32 * scale, img.height as f32 * scale);
                     ui.vertical_centered(|ui| {
                         ui.add(egui::Image::new((tex.id(), size)).corner_radius(6.0));
                     });
@@ -4008,9 +4021,7 @@ impl GrokApp {
                     // Enter — but don't also send as message this frame
                     slash_pick = Some(item);
                 }
-                if let Some(item) =
-                    slash::draw_palette(ui, &filter, &mut self.slash_selected)
-                {
+                if let Some(item) = slash::draw_palette(ui, &filter, &mut self.slash_selected) {
                     slash_pick = Some(item);
                 }
                 ui.add_space(6.0);
@@ -4043,7 +4054,10 @@ impl GrokApp {
             } else {
                 Stroke::new(1.0, Color32::from_black_alpha(12))
             })
-            .inner_margin(Margin::symmetric(theme::SPACE_MD as i8, theme::SPACE_MD as i8 - 2))
+            .inner_margin(Margin::symmetric(
+                theme::SPACE_MD as i8,
+                theme::SPACE_MD as i8 - 2,
+            ))
             .corner_radius(theme::RADIUS_LG)
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
@@ -4059,7 +4073,8 @@ impl GrokApp {
 
                 if !pending.is_empty() {
                     ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing = egui::vec2(theme::SPACE_SM, theme::SPACE_SM);
+                        ui.spacing_mut().item_spacing =
+                            egui::vec2(theme::SPACE_SM, theme::SPACE_SM);
                         let mut remove: Option<String> = None;
                         for img in &pending {
                             ui.push_id(&img.id, |ui| {
@@ -4135,8 +4150,7 @@ impl GrokApp {
                     .hint_text(RichText::new(hint).size(14.0).color(theme::TEXT_3()))
                     .return_key(None);
 
-                let resp =
-                    ui.add_sized([ui.available_width(), theme::COMPOSER_TEXT_H], te);
+                let resp = ui.add_sized([ui.available_width(), theme::COMPOSER_TEXT_H], te);
 
                 if self.input_focus_request {
                     resp.request_focus();
@@ -4182,7 +4196,8 @@ impl GrokApp {
                     ui.spacing_mut().item_spacing.x = theme::SPACE_SM;
                     ui.set_min_height(theme::BTN_H_LG);
 
-                    let attach = widgets::icon_btn(ui, IconKind::Paperclip, crate::i18n::t().attach_tip);
+                    let attach =
+                        widgets::icon_btn(ui, IconKind::Paperclip, crate::i18n::t().attach_tip);
                     if attach.clicked() {
                         self.pick_image_files();
                     }
@@ -4229,13 +4244,9 @@ impl GrokApp {
                                 egui::Sense::click(),
                             );
                             if ui.is_rect_visible(srect) {
-                                ui.painter().circle_filled(srect.center(), send_size * 0.5, fill);
-                                icons::paint_in(
-                                    ui,
-                                    IconKind::Send,
-                                    srect.shrink(10.0),
-                                    icon_c,
-                                );
+                                ui.painter()
+                                    .circle_filled(srect.center(), send_size * 0.5, fill);
+                                icons::paint_in(ui, IconKind::Send, srect.shrink(10.0), icon_c);
                             }
                             if r.hovered() {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -4249,11 +4260,7 @@ impl GrokApp {
                 });
                 ui.add_space(4.0);
                 let hint_keys = crate::i18n::t().composer_hint;
-                ui.label(
-                    RichText::new(hint_keys)
-                        .size(11.0)
-                        .color(theme::TEXT_3()),
-                );
+                ui.label(RichText::new(hint_keys).size(11.0).color(theme::TEXT_3()));
             });
     }
 
@@ -4404,7 +4411,10 @@ fn truncate_str(s: &str, max: usize) -> String {
     if n <= max {
         s.to_string()
     } else {
-        format!("{}…", s.chars().take(max.saturating_sub(1)).collect::<String>())
+        format!(
+            "{}…",
+            s.chars().take(max.saturating_sub(1)).collect::<String>()
+        )
     }
 }
 
@@ -4421,7 +4431,11 @@ fn format_tokens_one(n: u64) -> String {
 }
 
 fn format_tokens(used: u64, max: u64) -> String {
-    format!("{}/{}", format_tokens_one(used), format_tokens_one(max.max(1)))
+    format!(
+        "{}/{}",
+        format_tokens_one(used),
+        format_tokens_one(max.max(1))
+    )
 }
 
 fn compact_json_preview(v: &Value, max: usize) -> String {
@@ -4429,7 +4443,14 @@ fn compact_json_preview(v: &Value, max: usize) -> String {
         Value::String(s) => s.clone(),
         Value::Object(map) => {
             // Prefer common tool input fields
-            for key in ["command", "path", "target_directory", "query", "pattern", "file"] {
+            for key in [
+                "command",
+                "path",
+                "target_directory",
+                "query",
+                "pattern",
+                "file",
+            ] {
                 if let Some(Value::String(s)) = map.get(key) {
                     return truncate_str(s, max);
                 }
@@ -4514,11 +4535,8 @@ impl eframe::App for GrokApp {
         }
 
         // Background fill
-        let panel = egui::CentralPanel::default().frame(
-            Frame::NONE
-                .fill(theme::BG())
-                .inner_margin(0.0),
-        );
+        let panel =
+            egui::CentralPanel::default().frame(Frame::NONE.fill(theme::BG()).inner_margin(0.0));
 
         if self.sidebar_open {
             // No Frame stroke, no separator line, no multi-vline shadow.

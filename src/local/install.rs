@@ -165,12 +165,13 @@ fn run_install(tx: &mpsc::Sender<InstallProgress>) -> Result<String> {
         if let Some(p) = path {
             let ver = query_version(&p).unwrap_or_else(|| "unknown".into());
             info!("CLI installed at {} ({ver})", p.display());
-            Ok(format!("{}\n{}\n{ver}", crate::i18n::t().install_ok, p.display()))
+            Ok(format!(
+                "{}\n{}\n{ver}",
+                crate::i18n::t().install_ok,
+                p.display()
+            ))
         } else {
-            Ok(
-                crate::i18n::t().install_done_refresh
-                    .into(),
-            )
+            Ok(crate::i18n::t().install_done_refresh.into())
         }
     }
 

@@ -130,7 +130,11 @@ pub fn slash_filter(input: &str) -> Option<String> {
             return None;
         }
     }
-    let filter = rest.split_whitespace().next().unwrap_or("").to_ascii_lowercase();
+    let filter = rest
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
     Some(filter)
 }
 
@@ -247,11 +251,7 @@ pub fn draw_palette(
                     crate::i18n::Locale::Zh => "↑↓ 选择  ·  Enter 确认  ·  Esc 关闭",
                     crate::i18n::Locale::En => "↑↓ select  ·  Enter confirm  ·  Esc close",
                 };
-                ui.label(
-                    RichText::new(hint)
-                        .size(10.5)
-                        .color(theme::TEXT_3()),
-                );
+                ui.label(RichText::new(hint).size(10.5).color(theme::TEXT_3()));
             });
         });
 

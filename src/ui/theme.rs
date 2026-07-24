@@ -65,9 +65,9 @@ const DARK_PALETTE: Palette = Palette {
     selected: Color32::from_rgb(0x2A, 0x30, 0x3A),
     border: Color32::from_rgb(0x2E, 0x34, 0x3E),
     divider: Color32::from_rgb(0x22, 0x26, 0x2E),
-    text: Color32::from_rgb(0xF1, 0xF5, 0xF9),     // slate-100 — AA
-    text_2: Color32::from_rgb(0x94, 0xA3, 0xB8),   // slate-400
-    text_3: Color32::from_rgb(0x64, 0x74, 0x8B),   // slate-500
+    text: Color32::from_rgb(0xF1, 0xF5, 0xF9), // slate-100 — AA
+    text_2: Color32::from_rgb(0x94, 0xA3, 0xB8), // slate-400
+    text_3: Color32::from_rgb(0x64, 0x74, 0x8B), // slate-500
     success: Color32::from_rgb(0x22, 0xC5, 0x5E),
     warning: Color32::from_rgb(0xF5, 0x9E, 0x0B),
     danger: Color32::from_rgb(0xEF, 0x44, 0x44),
@@ -97,9 +97,9 @@ const LIGHT_PALETTE: Palette = Palette {
     selected: Color32::from_rgb(0xDC, 0xDC, 0xE0),
     border: Color32::from_rgb(0xE4, 0xE4, 0xE7),
     divider: Color32::from_rgb(0xEB, 0xEB, 0xEE),
-    text: Color32::from_rgb(0x09, 0x09, 0x0B),     // zinc-950 — max contrast
-    text_2: Color32::from_rgb(0x52, 0x52, 0x5B),   // zinc-600
-    text_3: Color32::from_rgb(0x71, 0x71, 0x7A),   // zinc-500 — still ≥4.5 on white for large
+    text: Color32::from_rgb(0x09, 0x09, 0x0B), // zinc-950 — max contrast
+    text_2: Color32::from_rgb(0x52, 0x52, 0x5B), // zinc-600
+    text_3: Color32::from_rgb(0x71, 0x71, 0x7A), // zinc-500 — still ≥4.5 on white for large
     success: Color32::from_rgb(0x16, 0xA3, 0x4A),
     warning: Color32::from_rgb(0xD9, 0x77, 0x06),
     danger: Color32::from_rgb(0xDC, 0x26, 0x26),
@@ -156,40 +156,142 @@ pub const SPACE_MD: f32 = 12.0;
 pub const SPACE_LG: f32 = 16.0;
 pub const SPACE_XL: f32 = 24.0;
 
-#[inline] pub fn ACCENT() -> Color32 { t().accent }
-#[inline] pub fn ACCENT_DIM() -> Color32 { t().accent_dim }
-#[inline] pub fn BG() -> Color32 { t().bg }
-#[inline] pub fn SIDEBAR() -> Color32 { t().sidebar }
-#[inline] pub fn SURFACE() -> Color32 { t().surface }
-#[inline] pub fn SURFACE_2() -> Color32 { t().surface_2 }
-#[inline] pub fn HOVER() -> Color32 { t().hover }
-#[inline] pub fn SELECTED() -> Color32 { t().selected }
-#[inline] pub fn BORDER() -> Color32 { t().border }
-#[inline] pub fn DIVIDER() -> Color32 { t().divider }
-#[inline] pub fn TEXT() -> Color32 { t().text }
-#[inline] pub fn TEXT_2() -> Color32 { t().text_2 }
-#[inline] pub fn TEXT_3() -> Color32 { t().text_3 }
-#[inline] pub fn SUCCESS() -> Color32 { t().success }
-#[inline] pub fn WARNING() -> Color32 { t().warning }
-#[inline] pub fn DANGER() -> Color32 { t().danger }
-#[inline] pub fn PURPLE() -> Color32 { t().purple }
-#[inline] pub fn USER_BUBBLE() -> Color32 { t().user_bubble }
-#[inline] pub fn USER_BUBBLE_BORDER() -> Color32 { t().user_bubble_border }
-#[inline] pub fn TOOL_ROW() -> Color32 { t().tool_row }
-#[inline] pub fn PANEL() -> Color32 { t().sidebar }
-#[inline] pub fn ELEVATED() -> Color32 { t().surface }
-#[inline] pub fn ELEVATED_2() -> Color32 { t().surface_2 }
-#[inline] pub fn BORDER_STRONG() -> Color32 { t().border }
-#[inline] pub fn SEPARATOR() -> Color32 { t().divider }
-#[inline] pub fn TEXT_SECONDARY() -> Color32 { t().text }
-#[inline] pub fn TEXT_MUTED() -> Color32 { t().text_2 }
-#[inline] pub fn TEXT_DIM() -> Color32 { t().text_3 }
-#[inline] pub fn ON_ACCENT() -> Color32 { t().on_accent }
-#[inline] pub fn RING() -> Color32 { t().ring }
-#[inline] pub fn CHIP() -> Color32 { t().chip }
-#[inline] pub fn CHIP_BORDER() -> Color32 { t().chip_border }
-#[inline] pub fn SEND_BTN() -> Color32 { t().send_btn }
-#[inline] pub fn CODE_BG() -> Color32 { t().code_bg }
+#[inline]
+pub fn ACCENT() -> Color32 {
+    t().accent
+}
+#[inline]
+pub fn ACCENT_DIM() -> Color32 {
+    t().accent_dim
+}
+#[inline]
+pub fn BG() -> Color32 {
+    t().bg
+}
+#[inline]
+pub fn SIDEBAR() -> Color32 {
+    t().sidebar
+}
+#[inline]
+pub fn SURFACE() -> Color32 {
+    t().surface
+}
+#[inline]
+pub fn SURFACE_2() -> Color32 {
+    t().surface_2
+}
+#[inline]
+pub fn HOVER() -> Color32 {
+    t().hover
+}
+#[inline]
+pub fn SELECTED() -> Color32 {
+    t().selected
+}
+#[inline]
+pub fn BORDER() -> Color32 {
+    t().border
+}
+#[inline]
+pub fn DIVIDER() -> Color32 {
+    t().divider
+}
+#[inline]
+pub fn TEXT() -> Color32 {
+    t().text
+}
+#[inline]
+pub fn TEXT_2() -> Color32 {
+    t().text_2
+}
+#[inline]
+pub fn TEXT_3() -> Color32 {
+    t().text_3
+}
+#[inline]
+pub fn SUCCESS() -> Color32 {
+    t().success
+}
+#[inline]
+pub fn WARNING() -> Color32 {
+    t().warning
+}
+#[inline]
+pub fn DANGER() -> Color32 {
+    t().danger
+}
+#[inline]
+pub fn PURPLE() -> Color32 {
+    t().purple
+}
+#[inline]
+pub fn USER_BUBBLE() -> Color32 {
+    t().user_bubble
+}
+#[inline]
+pub fn USER_BUBBLE_BORDER() -> Color32 {
+    t().user_bubble_border
+}
+#[inline]
+pub fn TOOL_ROW() -> Color32 {
+    t().tool_row
+}
+#[inline]
+pub fn PANEL() -> Color32 {
+    t().sidebar
+}
+#[inline]
+pub fn ELEVATED() -> Color32 {
+    t().surface
+}
+#[inline]
+pub fn ELEVATED_2() -> Color32 {
+    t().surface_2
+}
+#[inline]
+pub fn BORDER_STRONG() -> Color32 {
+    t().border
+}
+#[inline]
+pub fn SEPARATOR() -> Color32 {
+    t().divider
+}
+#[inline]
+pub fn TEXT_SECONDARY() -> Color32 {
+    t().text
+}
+#[inline]
+pub fn TEXT_MUTED() -> Color32 {
+    t().text_2
+}
+#[inline]
+pub fn TEXT_DIM() -> Color32 {
+    t().text_3
+}
+#[inline]
+pub fn ON_ACCENT() -> Color32 {
+    t().on_accent
+}
+#[inline]
+pub fn RING() -> Color32 {
+    t().ring
+}
+#[inline]
+pub fn CHIP() -> Color32 {
+    t().chip
+}
+#[inline]
+pub fn CHIP_BORDER() -> Color32 {
+    t().chip_border
+}
+#[inline]
+pub fn SEND_BTN() -> Color32 {
+    t().send_btn
+}
+#[inline]
+pub fn CODE_BG() -> Color32 {
+    t().code_bg
+}
 
 pub fn on_user_bubble() -> Color32 {
     if is_dark() {

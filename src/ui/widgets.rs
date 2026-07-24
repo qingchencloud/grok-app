@@ -26,7 +26,10 @@ pub fn card(ui: &mut Ui, fill: Color32, max_w: f32, add: impl FnOnce(&mut Ui)) {
     let w = ui.available_width().min(max_w).max(40.0);
     Frame::NONE
         .fill(fill)
-        .inner_margin(Margin::symmetric(theme::SPACE_MD as i8, theme::SPACE_MD as i8 - 2))
+        .inner_margin(Margin::symmetric(
+            theme::SPACE_MD as i8,
+            theme::SPACE_MD as i8 - 2,
+        ))
         .corner_radius(theme::RADIUS_LG)
         .show(ui, |ui| {
             ui.set_width(w.min(ui.available_width()));
@@ -39,8 +42,7 @@ pub fn avatar(ui: &mut Ui, letter: &str, fill: Color32, text_color: Color32) {
     let size = 26.0;
     let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
     if ui.is_rect_visible(rect) {
-        ui.painter()
-            .circle_filled(rect.center(), size * 0.5, fill);
+        ui.painter().circle_filled(rect.center(), size * 0.5, fill);
         ui.painter().text(
             rect.center(),
             egui::Align2::CENTER_CENTER,
@@ -128,7 +130,12 @@ pub fn quiet_link(ui: &mut Ui, text: &str) -> Response {
 }
 
 /// Compact search field for sidebar / modals.
-pub fn search_field(ui: &mut Ui, id: impl std::hash::Hash, text: &mut String, hint: &str) -> Response {
+pub fn search_field(
+    ui: &mut Ui,
+    id: impl std::hash::Hash,
+    text: &mut String,
+    hint: &str,
+) -> Response {
     let p = theme::t();
     let w = ui.available_width().max(40.0);
     Frame::NONE
@@ -328,8 +335,7 @@ pub fn suggestion_chip(ui: &mut Ui, size: Vec2, icon: &str, title: &str, subtitl
         theme::SURFACE()
     };
     if ui.is_rect_visible(rect) {
-        ui.painter()
-            .rect_filled(rect, theme::RADIUS as f32, fill);
+        ui.painter().rect_filled(rect, theme::RADIUS as f32, fill);
         let mut child = ui.new_child(
             UiBuilder::new()
                 .max_rect(rect.shrink2(Vec2::new(12.0, 10.0)))
@@ -340,7 +346,12 @@ pub fn suggestion_chip(ui: &mut Ui, size: Vec2, icon: &str, title: &str, subtitl
             ui.add_space(theme::SPACE_SM);
             ui.vertical(|ui| {
                 ui.set_max_width((size.x - 40.0).max(40.0));
-                ui.label(RichText::new(title).size(13.5).strong().color(theme::TEXT()));
+                ui.label(
+                    RichText::new(title)
+                        .size(13.5)
+                        .strong()
+                        .color(theme::TEXT()),
+                );
                 ui.label(RichText::new(subtitle).size(11.5).color(theme::TEXT_3()));
             });
         });
@@ -490,11 +501,7 @@ pub fn session_row(
         }
 
         // Right status badge (short, never wraps)
-        let badge = if busy {
-            Some(activity.label())
-        } else {
-            None
-        };
+        let badge = if busy { Some(activity.label()) } else { None };
         let badge_w = if badge.is_some() { 48.0 } else { 0.0 };
         let text_left = rect.left() + 28.0;
         let text_right = rect.right() - 8.0 - badge_w;
@@ -674,8 +681,7 @@ pub fn nav_row(ui: &mut Ui, kind: IconKind, label: &str) -> Response {
     };
     if ui.is_rect_visible(rect) {
         if bg != Color32::TRANSPARENT {
-            ui.painter()
-                .rect_filled(rect, theme::RADIUS as f32, bg);
+            ui.painter().rect_filled(rect, theme::RADIUS as f32, bg);
         }
         let color = if resp.hovered() { p.text } else { p.text_2 };
         let icon_r = egui::Rect::from_center_size(
@@ -767,8 +773,7 @@ pub fn hairline(ui: &mut Ui) {
     let x0 = rect.left() + 4.0;
     let x1 = rect.right() - 4.0;
     if x1 > x0 {
-        ui.painter()
-            .hline(x0..=x1, y, theme::separator_stroke());
+        ui.painter().hline(x0..=x1, y, theme::separator_stroke());
     }
     ui.add_space(1.0);
 }

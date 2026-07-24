@@ -189,8 +189,7 @@ pub fn draw_settings(
             .interactable(true)
             .sense(Sense::click())
             .show(ctx, |ui| {
-                ui.painter()
-                    .rect_filled(screen, 0.0, theme::modal_scrim());
+                ui.painter().rect_filled(screen, 0.0, theme::modal_scrim());
                 let resp = ui.allocate_rect(screen, Sense::click());
                 if resp.clicked() {
                     ui.ctx().memory_mut(|m| {
@@ -248,11 +247,7 @@ pub fn draw_settings(
                     .inner_margin(Margin::symmetric(16, 10))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new(msg)
-                                    .size(13.0)
-                                    .color(theme::SUCCESS()),
-                            );
+                            ui.label(RichText::new(msg).size(13.0).color(theme::SUCCESS()));
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                 if ui
                                     .add(
@@ -342,9 +337,7 @@ pub fn draw_settings(
                                         ui.add_sized(
                                             [(NAV_W - 28.0).max(100.0), 36.0],
                                             egui::Button::new(
-                                                RichText::new(tab.label())
-                                                    .size(13.5)
-                                                    .color(text_c),
+                                                RichText::new(tab.label()).size(13.5).color(text_c),
                                             )
                                             .fill(fill)
                                             .stroke(egui::Stroke::NONE)
@@ -370,11 +363,8 @@ pub fn draw_settings(
                             });
                         // Nav | body divider
                         let r = ui.min_rect();
-                        ui.painter().vline(
-                            r.right(),
-                            r.y_range(),
-                            theme::separator_stroke(),
-                        );
+                        ui.painter()
+                            .vline(r.right(), r.y_range(), theme::separator_stroke());
                     },
                 );
 
@@ -389,9 +379,7 @@ pub fn draw_settings(
                             .fill(theme::modal_fill())
                             .inner_margin(Margin::symmetric(28, 22))
                             .show(ui, |ui| {
-                                ui.set_width(
-                                    (body_w - 56.0).max(360.0).min(ui.available_width()),
-                                );
+                                ui.set_width((body_w - 56.0).max(360.0).min(ui.available_width()));
 
                                 ui.label(
                                     RichText::new(state.tab.label())
@@ -598,15 +586,11 @@ fn tab_appearance(ui: &mut Ui, state: &mut SettingsState, actions: &mut Settings
                 };
                 if ui
                     .add(
-                        egui::Button::new(
-                            RichText::new(label)
-                                .size(12.5)
-                                .color(if on {
-                                    theme::ACCENT()
-                                } else {
-                                    theme::TEXT_2()
-                                }),
-                        )
+                        egui::Button::new(RichText::new(label).size(12.5).color(if on {
+                            theme::ACCENT()
+                        } else {
+                            theme::TEXT_2()
+                        }))
                         .fill(fill)
                         .stroke(stroke)
                         .corner_radius(8)
@@ -660,8 +644,7 @@ fn tab_appearance(ui: &mut Ui, state: &mut SettingsState, actions: &mut Settings
                         .hint_text(s.display_name_hint),
                 );
                 if resp.changed() && state.user_display_name.chars().count() > 32 {
-                    state.user_display_name =
-                        state.user_display_name.chars().take(32).collect();
+                    state.user_display_name = state.user_display_name.chars().take(32).collect();
                 }
                 ui.add_space(2.0);
                 ui.label(
@@ -681,7 +664,10 @@ fn tab_appearance(ui: &mut Ui, state: &mut SettingsState, actions: &mut Settings
             ui.spacing_mut().item_spacing.x = 8.0;
             if ghost_button(ui, s.choose_image).clicked() {
                 if let Some(p) = rfd::FileDialog::new()
-                    .add_filter(s.images_filter, &["png", "jpg", "jpeg", "gif", "webp", "bmp"])
+                    .add_filter(
+                        s.images_filter,
+                        &["png", "jpg", "jpeg", "gif", "webp", "bmp"],
+                    )
                     .pick_file()
                 {
                     state.user_avatar_path = p.display().to_string();
@@ -721,39 +707,63 @@ fn tab_appearance(ui: &mut Ui, state: &mut SettingsState, actions: &mut Settings
 
     section(ui, s.chat_experience, "", |ui| {
         let s = crate::i18n::t();
-        let _ = row_toggle(ui, s.smooth_stream, s.smooth_stream_hint, &mut state.smooth_stream);
+        let _ = row_toggle(
+            ui,
+            s.smooth_stream,
+            s.smooth_stream_hint,
+            &mut state.smooth_stream,
+        );
         ui.add_space(10.0);
-        let _ = row_toggle(ui, s.show_thoughts, s.show_thoughts_hint, &mut state.show_thoughts);
+        let _ = row_toggle(
+            ui,
+            s.show_thoughts,
+            s.show_thoughts_hint,
+            &mut state.show_thoughts,
+        );
         ui.add_space(10.0);
-        let _ = row_toggle(ui, s.expand_tools, s.expand_tools_hint, &mut state.expand_tools);
+        let _ = row_toggle(
+            ui,
+            s.expand_tools,
+            s.expand_tools_hint,
+            &mut state.expand_tools,
+        );
         ui.add_space(10.0);
-        let _ = row_toggle(ui, s.enter_to_send, s.enter_to_send_hint, &mut state.enter_to_send);
+        let _ = row_toggle(
+            ui,
+            s.enter_to_send,
+            s.enter_to_send_hint,
+            &mut state.enter_to_send,
+        );
     });
 }
 
-
 fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActions) {
-    section(ui, crate::i18n::t().model, crate::i18n::t().model_hint, |ui| {
-        ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("set_model")
-                .selected_text(if state.model.is_empty() {
-                    crate::i18n::t().select_model
-                } else {
-                    &state.model
-                })
-                .width(160.0)
-                .show_ui(ui, |ui| {
-                    for m in MODELS {
-                        ui.selectable_value(&mut state.model, (*m).to_string(), *m);
-                    }
-                });
-            ui.add(
-                TextEdit::singleline(&mut state.model)
-                    .desired_width(ui.available_width().max(120.0))
-                    .hint_text(crate::i18n::t().or_type_model),
-            );
-        });
-    });
+    section(
+        ui,
+        crate::i18n::t().model,
+        crate::i18n::t().model_hint,
+        |ui| {
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt("set_model")
+                    .selected_text(if state.model.is_empty() {
+                        crate::i18n::t().select_model
+                    } else {
+                        &state.model
+                    })
+                    .width(160.0)
+                    .show_ui(ui, |ui| {
+                        for m in MODELS {
+                            ui.selectable_value(&mut state.model, (*m).to_string(), *m);
+                        }
+                    });
+                ui.add(
+                    TextEdit::singleline(&mut state.model)
+                        .desired_width(ui.available_width().max(120.0))
+                        .hint_text(crate::i18n::t().or_type_model),
+                );
+            });
+        },
+    );
 
     section(
         ui,
@@ -770,15 +780,11 @@ fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActio
                         Color32::TRANSPARENT
                     };
                     let resp = ui.add(
-                        egui::Button::new(
-                            RichText::new(label)
-                                .size(12.5)
-                                .color(if active {
-                                    theme::TEXT()
-                                } else {
-                                    theme::TEXT_2()
-                                }),
-                        )
+                        egui::Button::new(RichText::new(label).size(12.5).color(if active {
+                            theme::TEXT()
+                        } else {
+                            theme::TEXT_2()
+                        }))
                         .fill(fill)
                         .stroke(if active {
                             egui::Stroke::NONE
@@ -805,25 +811,30 @@ fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActio
         },
     );
 
-    section(ui, crate::i18n::t().working_dir, crate::i18n::t().working_dir_hint, |ui| {
-        ui.horizontal(|ui| {
-            let w = (ui.available_width() - 48.0).max(160.0);
-            ui.add(
-                TextEdit::singleline(&mut state.cwd)
-                    .desired_width(w)
-                    .hint_text(crate::i18n::t().working_dir),
-            );
-            if ui
-                .add_sized([40.0, 28.0], egui::Button::new("…"))
-                .on_hover_text(crate::i18n::t().pick_folder)
-                .clicked()
-            {
-                if let Some(dir) = rfd::FileDialog::new().pick_folder() {
-                    state.cwd = dir.display().to_string();
+    section(
+        ui,
+        crate::i18n::t().working_dir,
+        crate::i18n::t().working_dir_hint,
+        |ui| {
+            ui.horizontal(|ui| {
+                let w = (ui.available_width() - 48.0).max(160.0);
+                ui.add(
+                    TextEdit::singleline(&mut state.cwd)
+                        .desired_width(w)
+                        .hint_text(crate::i18n::t().working_dir),
+                );
+                if ui
+                    .add_sized([40.0, 28.0], egui::Button::new("…"))
+                    .on_hover_text(crate::i18n::t().pick_folder)
+                    .clicked()
+                {
+                    if let Some(dir) = rfd::FileDialog::new().pick_folder() {
+                        state.cwd = dir.display().to_string();
+                    }
                 }
-            }
-        });
-    });
+            });
+        },
+    );
 
     section(ui, crate::i18n::t().permissions, "", |ui| {
         row_toggle(
@@ -841,21 +852,26 @@ fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActio
         );
     });
 
-    section(ui, crate::i18n::t().grok_binary, crate::i18n::t().grok_binary_hint, |ui| {
-        ui.add(
-            TextEdit::singleline(&mut state.grok_path)
-                .desired_width(ui.available_width())
-                .hint_text(crate::i18n::t().auto_detect),
-        );
-        if let Ok(p) = resolve_grok_binary(if state.grok_path.is_empty() {
-            ""
-        } else {
-            &state.grok_path
-        }) {
-            ui.add_space(6.0);
-            mono_path(ui, &format!("✓ {}", p.display()));
-        }
-    });
+    section(
+        ui,
+        crate::i18n::t().grok_binary,
+        crate::i18n::t().grok_binary_hint,
+        |ui| {
+            ui.add(
+                TextEdit::singleline(&mut state.grok_path)
+                    .desired_width(ui.available_width())
+                    .hint_text(crate::i18n::t().auto_detect),
+            );
+            if let Ok(p) = resolve_grok_binary(if state.grok_path.is_empty() {
+                ""
+            } else {
+                &state.grok_path
+            }) {
+                ui.add_space(6.0);
+                mono_path(ui, &format!("✓ {}", p.display()));
+            }
+        },
+    );
 
     ui.horizontal(|ui| {
         if primary_button(ui, crate::i18n::t().save_and_reconnect, true).clicked() {
@@ -883,40 +899,45 @@ fn tab_cli(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActions
         .as_ref()
         .map(|p| p.display().to_string());
 
-    section(ui, crate::i18n::t().cli_status, crate::i18n::t().cli_status_hint, |ui| {
-        ui.horizontal(|ui| {
-            let (c, t) = if installed {
-                (theme::SUCCESS(), crate::i18n::t().cli_installed)
-            } else {
-                (theme::WARNING(), crate::i18n::t().cli_missing)
-            };
-            ui.colored_label(c, format!("● {t}"));
-            if let Some(v) = &version {
-                ui.label(RichText::new(v).size(12.5).color(theme::TEXT_3()));
+    section(
+        ui,
+        crate::i18n::t().cli_status,
+        crate::i18n::t().cli_status_hint,
+        |ui| {
+            ui.horizontal(|ui| {
+                let (c, t) = if installed {
+                    (theme::SUCCESS(), crate::i18n::t().cli_installed)
+                } else {
+                    (theme::WARNING(), crate::i18n::t().cli_missing)
+                };
+                ui.colored_label(c, format!("● {t}"));
+                if let Some(v) = &version {
+                    ui.label(RichText::new(v).size(12.5).color(theme::TEXT_3()));
+                }
+            });
+            if let Some(p) = &path_disp {
+                ui.add_space(4.0);
+                mono_path(ui, p);
             }
-        });
-        if let Some(p) = &path_disp {
-            ui.add_space(4.0);
-            mono_path(ui, p);
-        }
-        ui.add_space(8.0);
-        ui.colored_label(
-            if authenticated {
-                theme::SUCCESS()
-            } else {
-                theme::WARNING()
-            },
-            if authenticated {
-                format!("● {}", crate::i18n::t().logged_in)
-            } else {
-                format!("○ {}", crate::i18n::t().not_logged_in)
-            },
-        );
-        if let Some(h) = &home_disp {
-            ui.add_space(4.0);
-            mono_path(ui, &format!("GROK_HOME: {h}"));
-        }
-    });
+            ui.add_space(8.0);
+            ui.colored_label(
+                if authenticated {
+                    theme::SUCCESS()
+                } else {
+                    theme::WARNING()
+                },
+                if authenticated {
+                    format!("● {}", crate::i18n::t().logged_in)
+                } else {
+                    format!("○ {}", crate::i18n::t().not_logged_in)
+                },
+            );
+            if let Some(h) = &home_disp {
+                ui.add_space(4.0);
+                mono_path(ui, &format!("GROK_HOME: {h}"));
+            }
+        },
+    );
 
     section(
         ui,

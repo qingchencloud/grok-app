@@ -142,7 +142,14 @@ pub fn finished_with(reason: &str) -> String {
     }
 }
 
-pub fn context_tooltip(used: &str, win: &str, src: &str, model: &str, effort: &str, extra: &str) -> String {
+pub fn context_tooltip(
+    used: &str,
+    win: &str,
+    src: &str,
+    model: &str,
+    effort: &str,
+    extra: &str,
+) -> String {
     match current_locale() {
         Locale::Zh => format!(
             "上下文 {used}/{win}\n窗口上限：{win}（{src}）\n模型 {model} · 强度 {effort}{extra}"
@@ -232,8 +239,12 @@ pub fn effort_chip_full(effort: &str) -> String {
 
 pub fn status_line(conn: &str, model: &str, effort: &str, ctx: &str, pid: &str) -> String {
     match current_locale() {
-        Locale::Zh => format!("状态 · {conn} · 模型 {model} · 强度 {effort} · 上下文 {ctx} · PID {pid}"),
-        Locale::En => format!("Status · {conn} · model {model} · effort {effort} · context {ctx} · PID {pid}"),
+        Locale::Zh => {
+            format!("状态 · {conn} · 模型 {model} · 强度 {effort} · 上下文 {ctx} · PID {pid}")
+        }
+        Locale::En => {
+            format!("Status · {conn} · model {model} · effort {effort} · context {ctx} · PID {pid}")
+        }
     }
 }
 

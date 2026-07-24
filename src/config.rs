@@ -89,10 +89,7 @@ impl AppConfig {
 
     /// Sanitize display name for storage: trim, collapse whitespace, hard cap length.
     pub fn sanitize_display_name(raw: &str) -> String {
-        let collapsed: String = raw
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ");
+        let collapsed: String = raw.split_whitespace().collect::<Vec<_>>().join(" ");
         let s = collapsed.trim();
         if s.is_empty() {
             return String::new();
@@ -113,7 +110,12 @@ impl AppConfig {
     pub fn avatar_letter(name: &str) -> String {
         let n = name.trim();
         if n.is_empty() {
-            return crate::i18n::t().me.chars().next().unwrap_or('M').to_string();
+            return crate::i18n::t()
+                .me
+                .chars()
+                .next()
+                .unwrap_or('M')
+                .to_string();
         }
         n.chars()
             .next()
@@ -194,9 +196,7 @@ pub fn resolve_grok_binary(configured: &str) -> Result<PathBuf> {
         return Ok(p);
     }
 
-    anyhow::bail!(
-        crate::i18n::t().grok_not_found
-    )
+    anyhow::bail!(crate::i18n::t().grok_not_found)
 }
 
 pub fn grok_home() -> Option<PathBuf> {
@@ -210,7 +210,9 @@ pub fn is_cli_authenticated() -> bool {
     grok_home()
         .map(|h| h.join("auth.json").is_file())
         .unwrap_or(false)
-        || std::env::var("XAI_API_KEY").map(|k| !k.is_empty()).unwrap_or(false)
+        || std::env::var("XAI_API_KEY")
+            .map(|k| !k.is_empty())
+            .unwrap_or(false)
 }
 
 pub fn path_exists(p: &str) -> bool {
@@ -263,4 +265,3 @@ pub fn effort_label(id: &str) -> &'static str {
         _ => s.effort_medium,
     }
 }
-

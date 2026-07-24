@@ -11,7 +11,9 @@ use super::theme;
 use crate::acp::{ChatImage, TimelineItem};
 use crate::attachments;
 use crate::config::AppConfig;
-use egui::{Align, Color32, Frame, Layout, Margin, RichText, Sense, Stroke, TextureHandle, Ui, Vec2};
+use egui::{
+    Align, Color32, Frame, Layout, Margin, RichText, Sense, Stroke, TextureHandle, Ui, Vec2,
+};
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 
 /// Profile shown beside chat bubbles (from settings).
@@ -112,9 +114,7 @@ pub fn render_turn_status(
 
     let s = crate::i18n::t();
     let detail = match phase {
-        TurnPhase::Tool => live_tool
-            .map(|(t, _)| t.as_str())
-            .unwrap_or(s.tool_default),
+        TurnPhase::Tool => live_tool.map(|(t, _)| t.as_str()).unwrap_or(s.tool_default),
         TurnPhase::Permission => s.phase_permission,
         TurnPhase::Thinking => s.phase_thinking,
         TurnPhase::Generating => {
@@ -155,12 +155,7 @@ pub fn render_turn_status(
                     .corner_radius(6)
                     .inner_margin(Margin::symmetric(7, 2))
                     .show(ui, |ui| {
-                        ui.label(
-                            RichText::new(phase.label())
-                                .size(11.5)
-                                .strong()
-                                .color(dot),
-                        );
+                        ui.label(RichText::new(phase.label()).size(11.5).strong().color(dot));
                     });
                 ui.add(
                     egui::Label::new(RichText::new(detail).size(12.0).color(theme::TEXT_2()))
@@ -216,9 +211,7 @@ pub fn render_timeline(
     let indices: Vec<usize> = items
         .iter()
         .enumerate()
-        .filter(|(_, item)| {
-            show_thoughts || !matches!(item, TimelineItem::Thought { .. })
-        })
+        .filter(|(_, item)| show_thoughts || !matches!(item, TimelineItem::Thought { .. }))
         .map(|(i, _)| i)
         .collect();
 
@@ -246,12 +239,9 @@ pub fn render_timeline(
                 ui.set_width(w.min(ui.available_width()));
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new(format!(
-                            "↑ {skip} {}",
-                            crate::i18n::t().history_collapsed
-                        ))
-                        .size(12.0)
-                        .color(p.text_2),
+                        RichText::new(format!("↑ {skip} {}", crate::i18n::t().history_collapsed))
+                            .size(12.0)
+                            .color(p.text_2),
                     );
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui
@@ -463,14 +453,9 @@ fn render_empty(ui: &mut Ui, w: f32, on_suggestion: &mut impl FnMut(String)) {
                                 ui.set_max_width(half);
                                 ui.vertical(|ui| {
                                     ui.label(
-                                        RichText::new(*title)
-                                            .size(13.5)
-                                            .strong()
-                                            .color(p.text),
+                                        RichText::new(*title).size(13.5).strong().color(p.text),
                                     );
-                                    ui.label(
-                                        RichText::new(*hint).size(11.5).color(p.text_3),
-                                    );
+                                    ui.label(RichText::new(*hint).size(11.5).color(p.text_3));
                                 });
                             })
                             .response
@@ -503,7 +488,8 @@ fn render_chat_image(
     resolve_tex: &mut impl FnMut(&ChatImage) -> Option<TextureHandle>,
 ) {
     let scale = (max_side / img.width.max(img.height) as f32).min(1.0);
-    let size = Vec2::new(img.width as f32 * scale, img.height as f32 * scale).max(Vec2::splat(24.0));
+    let size =
+        Vec2::new(img.width as f32 * scale, img.height as f32 * scale).max(Vec2::splat(24.0));
 
     if let Some(tex) = resolve_tex(img) {
         let resp = ui.add(
@@ -556,9 +542,7 @@ fn render_item(
 
     match item {
         TimelineItem::UserMessage {
-            text,
-            attachments,
-            ..
+            text, attachments, ..
         } => {
             // Right-hug layout: measure bubble width, spacer on the left.
             // (RTL + Align::Min used to dump short text like "行" to the far left.)
@@ -588,11 +572,7 @@ fn render_item(
                     .x
                 })
             };
-            let attach_w = if attachments.is_empty() {
-                0.0
-            } else {
-                148.0
-            };
+            let attach_w = if attachments.is_empty() { 0.0 } else { 148.0 };
             let content_w = text_w.max(attach_w).max(28.0);
             let bubble_w = (content_w + pad_x).clamp(44.0, bubble_max);
             // Action chip ~52 wide; keep column at least that wide
@@ -635,7 +615,11 @@ fn render_item(
                                         for img in attachments {
                                             ui.push_id(&img.id, |ui| {
                                                 render_chat_image(
-                                                    ui, img, 140.0, on_image, resolve_tex,
+                                                    ui,
+                                                    img,
+                                                    140.0,
+                                                    on_image,
+                                                    resolve_tex,
                                                 );
                                             });
                                             ui.add_space(4.0);
@@ -648,9 +632,7 @@ fn render_item(
                                 if !text.is_empty() {
                                     ui.add(
                                         egui::Label::new(
-                                            RichText::new(text)
-                                                .size(14.0)
-                                                .color(on_bubble),
+                                            RichText::new(text).size(14.0).color(on_bubble),
                                         )
                                         .wrap()
                                         .selectable(true),
@@ -716,12 +698,7 @@ fn render_item(
                             // Header inside bubble
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 6.0;
-                                ui.label(
-                                    RichText::new("Grok")
-                                        .size(12.0)
-                                        .strong()
-                                        .color(p.text_2),
-                                );
+                                ui.label(RichText::new("Grok").size(12.0).strong().color(p.text_2));
                                 if *streaming {
                                     ui.add(egui::Spinner::new().size(10.0).color(p.accent));
                                     ui.label(
@@ -746,10 +723,7 @@ fn render_item(
                                 render_assistant_markdown(ui, md_cache, md_src, inner_w);
                                 if *streaming {
                                     ui.label(
-                                        RichText::new("▍")
-                                            .size(13.0)
-                                            .color(p.accent)
-                                            .strong(),
+                                        RichText::new("▍").size(13.0).color(p.accent).strong(),
                                     );
                                 }
                             }
@@ -782,19 +756,17 @@ fn render_item(
             // Muted one-line collapse — no purple card chrome
             ui.horizontal(|ui| {
                 ui.add_space(4.0);
-                egui::CollapsingHeader::new(
-                    RichText::new(label).size(12.0).color(p.text_3),
-                )
-                .id_salt(("thought", id.as_str()))
-                .default_open(false)
-                .show(ui, |ui| {
-                    ui.set_max_width((col_w - 24.0).max(80.0));
-                    ui.add(
-                        egui::Label::new(RichText::new(text).size(12.5).color(p.text_2))
-                            .wrap()
-                            .selectable(true),
-                    );
-                });
+                egui::CollapsingHeader::new(RichText::new(label).size(12.0).color(p.text_3))
+                    .id_salt(("thought", id.as_str()))
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        ui.set_max_width((col_w - 24.0).max(80.0));
+                        ui.add(
+                            egui::Label::new(RichText::new(text).size(12.5).color(p.text_2))
+                                .wrap()
+                                .selectable(true),
+                        );
+                    });
             });
         }
 
@@ -824,75 +796,69 @@ fn render_item(
             };
 
             // Flat activity line — no nested frames fighting the rail
-            with_chain_rail(ui, col_w, in_chain, prev_chain, next_chain, if running {
-                color
-            } else if failed {
-                p.danger
-            } else {
-                p.border
-            }, |ui| {
-                let show_detail =
-                    !detail.trim().is_empty() && (expand_tools || failed || running);
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 8.0;
-                    if running {
-                        ui.add(egui::Spinner::new().size(11.0).color(color));
-                    } else if failed {
-                        ui.label(RichText::new("x").size(12.0).strong().color(color));
-                    } else {
-                        ui.label(RichText::new("·").size(14.0).color(p.text_3));
-                    }
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(&label)
-                                .size(12.5)
-                                .monospace()
-                                .color(if running || failed {
-                                    p.text
-                                } else {
-                                    p.text_3
-                                }),
-                        )
-                        .truncate(),
-                    );
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label(
-                            RichText::new(st_label)
-                                .size(11.0)
-                                .color(color),
-                        );
-                    });
-                });
-                if show_detail {
-                    ui.add_space(2.0);
-                    egui::CollapsingHeader::new(
-                        RichText::new(crate::i18n::t().detail)
-                            .size(11.0)
-                            .color(p.text_3),
-                    )
-                    .id_salt(("tool_d", id.as_str()))
-                    .default_open(failed)
-                    .show(ui, |ui| {
+            with_chain_rail(
+                ui,
+                col_w,
+                in_chain,
+                prev_chain,
+                next_chain,
+                if running {
+                    color
+                } else if failed {
+                    p.danger
+                } else {
+                    p.border
+                },
+                |ui| {
+                    let show_detail =
+                        !detail.trim().is_empty() && (expand_tools || failed || running);
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        if running {
+                            ui.add(egui::Spinner::new().size(11.0).color(color));
+                        } else if failed {
+                            ui.label(RichText::new("x").size(12.0).strong().color(color));
+                        } else {
+                            ui.label(RichText::new("·").size(14.0).color(p.text_3));
+                        }
                         ui.add(
                             egui::Label::new(
-                                RichText::new(detail)
-                                    .size(11.0)
+                                RichText::new(&label)
+                                    .size(12.5)
                                     .monospace()
-                                    .color(p.text_2),
+                                    .color(if running || failed { p.text } else { p.text_3 }),
                             )
-                            .wrap()
-                            .selectable(true),
+                            .truncate(),
                         );
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            ui.label(RichText::new(st_label).size(11.0).color(color));
+                        });
                     });
-                }
-            });
+                    if show_detail {
+                        ui.add_space(2.0);
+                        egui::CollapsingHeader::new(
+                            RichText::new(crate::i18n::t().detail)
+                                .size(11.0)
+                                .color(p.text_3),
+                        )
+                        .id_salt(("tool_d", id.as_str()))
+                        .default_open(failed)
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(detail).size(11.0).monospace().color(p.text_2),
+                                )
+                                .wrap()
+                                .selectable(true),
+                            );
+                        });
+                    }
+                },
+            );
         }
 
         TimelineItem::Plan { entries, .. } => {
-            let done = entries
-                .iter()
-                .filter(|e| e.status == "completed")
-                .count();
+            let done = entries.iter().filter(|e| e.status == "completed").count();
             let total = entries.len().max(1);
             let any_run = entries.iter().any(|e| e.status == "in_progress");
             Frame::NONE
@@ -955,12 +921,7 @@ fn render_item(
 }
 
 /// Render assistant markdown with proper GFM tables (commonmark tables look broken).
-fn render_assistant_markdown(
-    ui: &mut Ui,
-    md_cache: &mut CommonMarkCache,
-    src: &str,
-    max_w: f32,
-) {
+fn render_assistant_markdown(ui: &mut Ui, md_cache: &mut CommonMarkCache, src: &str, max_w: f32) {
     let chunks = split_md_tables(src);
     if chunks.is_empty() {
         CommonMarkViewer::new()
@@ -1000,10 +961,7 @@ fn split_md_tables(src: &str) -> Vec<MdChunk> {
     let mut prose: Vec<&str> = Vec::new();
     let mut i = 0;
     while i < lines.len() {
-        if is_table_row(lines[i])
-            && i + 1 < lines.len()
-            && is_table_sep(lines[i + 1])
-        {
+        if is_table_row(lines[i]) && i + 1 < lines.len() && is_table_sep(lines[i + 1]) {
             if !prose.is_empty() {
                 out.push(MdChunk::Prose(prose.join("\n")));
                 prose.clear();
@@ -1044,9 +1002,7 @@ fn is_table_sep(line: &str) -> bool {
 
 fn parse_table_row(line: &str) -> Vec<String> {
     let t = line.trim().trim_matches('|');
-    t.split('|')
-        .map(|c| c.trim().to_string())
-        .collect()
+    t.split('|').map(|c| c.trim().to_string()).collect()
 }
 
 fn render_md_table(ui: &mut Ui, headers: &[String], rows: &[Vec<String>], max_w: f32) {
@@ -1079,22 +1035,14 @@ fn render_md_table(ui: &mut Ui, headers: &[String], rows: &[Vec<String>], max_w:
                         .show(ui, |ui| {
                             ui.set_min_width(col_w - 1.0);
                             ui.set_max_width(col_w - 1.0);
-                            ui.label(
-                                RichText::new(h)
-                                    .size(12.5)
-                                    .strong()
-                                    .color(p.text),
-                            );
+                            ui.label(RichText::new(h).size(12.5).strong().color(p.text));
                         });
                 }
             });
             // Hairline under header
             let r = ui.min_rect();
-            ui.painter().hline(
-                r.x_range(),
-                r.bottom(),
-                Stroke::new(1.0, p.border),
-            );
+            ui.painter()
+                .hline(r.x_range(), r.bottom(), Stroke::new(1.0, p.border));
             for (ri, row) in rows.iter().enumerate() {
                 let bg = if ri % 2 == 1 {
                     if theme::is_dark() {
@@ -1124,10 +1072,7 @@ fn render_md_table(ui: &mut Ui, headers: &[String], rows: &[Vec<String>], max_w:
                                             || cell.ends_with(".rs")
                                             || cell.ends_with('/');
                                         let rt = if mono {
-                                            RichText::new(cell)
-                                                .size(12.5)
-                                                .monospace()
-                                                .color(p.text)
+                                            RichText::new(cell).size(12.5).monospace().color(p.text)
                                         } else {
                                             RichText::new(cell).size(13.0).color(p.text_2)
                                         };
@@ -1236,5 +1181,3 @@ fn with_chain_rail(
         }
     });
 }
-
-

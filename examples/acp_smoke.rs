@@ -68,7 +68,10 @@ async fn main() {
                     eprintln!("\n[exit] code={code:?} pid={pid:?}");
                     break;
                 }
-                AgentEvent::Connected { agent_name, agent_version } => {
+                AgentEvent::Connected {
+                    agent_name,
+                    agent_version,
+                } => {
                     println!("connected {agent_name} {agent_version}");
                 }
                 AgentEvent::SessionCreated { session_id } => {

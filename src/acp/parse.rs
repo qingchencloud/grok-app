@@ -125,7 +125,8 @@ pub fn session_update_to_events(update: &Value) -> Vec<AgentEvent> {
             }]
         }
         // Token / context usage (several CLI spellings)
-        "tokens_used" | "usage" | "context_usage" | "token_usage" | "context_compact" | "usage_update" => {
+        "tokens_used" | "usage" | "context_usage" | "token_usage" | "context_compact"
+        | "usage_update" => {
             let used = first_u64(
                 update,
                 &[
@@ -186,9 +187,7 @@ pub fn session_update_to_events(update: &Value) -> Vec<AgentEvent> {
 /// Collapse CLI status spellings into a small stable set for the UI.
 pub fn normalize_tool_status(raw: &str) -> String {
     match raw.trim().to_ascii_lowercase().as_str() {
-        "completed" | "complete" | "success" | "succeeded" | "done" | "ok" => {
-            "completed".into()
-        }
+        "completed" | "complete" | "success" | "succeeded" | "done" | "ok" => "completed".into(),
         "failed" | "error" | "errored" => "failed".into(),
         "cancelled" | "canceled" => "cancelled".into(),
         "in_progress" | "running" | "active" => "in_progress".into(),
@@ -249,10 +248,7 @@ pub fn extract_text_content(update: &Value) -> String {
     if let Some(t) = update.pointer("/content/text").and_then(|v| v.as_str()) {
         return t.to_string();
     }
-    if let Some(t) = update
-        .pointer("/content/delta")
-        .and_then(|v| v.as_str())
-    {
+    if let Some(t) = update.pointer("/content/delta").and_then(|v| v.as_str()) {
         return t.to_string();
     }
     if let Some(t) = update.get("content").and_then(|v| v.as_str()) {
@@ -264,7 +260,10 @@ pub fn extract_text_content(update: &Value) -> String {
     if let Some(t) = update.pointer("/delta/text").and_then(|v| v.as_str()) {
         return t.to_string();
     }
-    if let Some(t) = update.pointer("/message/content/text").and_then(|v| v.as_str()) {
+    if let Some(t) = update
+        .pointer("/message/content/text")
+        .and_then(|v| v.as_str())
+    {
         return t.to_string();
     }
     // content: [{ type: "text", text: "..." }, ...]
@@ -297,10 +296,13 @@ pub fn build_prompt_params(session_id: &str, blocks: &[Value]) -> Value {
 }
 
 /// Compact history bootstrap when session/load failed (RongleCat-style continuity).
-pub fn build_history_bootstrap(turns: &[(bool, String)], max_turns: usize, max_chars: usize) -> String {
-    let mut out = String::from(
-        "【以下为本地会话历史摘要，供上下文衔接；请据此继续，勿复述本段说明】\n\n",
-    );
+pub fn build_history_bootstrap(
+    turns: &[(bool, String)],
+    max_turns: usize,
+    max_chars: usize,
+) -> String {
+    let mut out =
+        String::from("【以下为本地会话历史摘要，供上下文衔接；请据此继续，勿复述本段说明】\n\n");
     let slice: Vec<_> = turns.iter().rev().take(max_turns).collect();
     let slice: Vec<_> = slice.into_iter().rev().collect();
     let mut used = out.len();

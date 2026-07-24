@@ -54,7 +54,12 @@ impl PendingImage {
         let dir = attachments_dir()?;
         std::fs::create_dir_all(&dir)?;
         let safe = sanitize_filename(&self.name);
-        let fname = format!("{:02}_{}_{}.png", index, &self.id[..8.min(self.id.len())], safe);
+        let fname = format!(
+            "{:02}_{}_{}.png",
+            index,
+            &self.id[..8.min(self.id.len())],
+            safe
+        );
         let path = dir.join(fname);
         std::fs::write(&path, &self.png_bytes)
             .with_context(|| format!("write attachment {}", path.display()))?;
@@ -288,7 +293,8 @@ pub fn from_bytes(bytes: &[u8], name: &str) -> Result<PendingImage> {
     if bytes.len() > MAX_BYTES {
         bail!("{}", crate::i18n::t().file_too_large);
     }
-    let dyn_img = image::load_from_memory(bytes).with_context(|| crate::i18n::t().decode_image_failed.to_string())?;
+    let dyn_img = image::load_from_memory(bytes)
+        .with_context(|| crate::i18n::t().decode_image_failed.to_string())?;
     let rgba_img = dyn_img.to_rgba8();
     let (w, h) = rgba_img.dimensions();
     from_rgba(rgba_img.into_raw(), w, h, name)
@@ -856,7 +862,7 @@ mod dib_tests {
         dib[8..12].copy_from_slice(&(-2i32).to_le_bytes()); // top-down height
         dib[12..14].copy_from_slice(&1u16.to_le_bytes()); // planes
         dib[14..16].copy_from_slice(&32u16.to_le_bytes()); // bit count
-        // pixels: red, green / blue, white  (B,G,R,A)
+                                                           // pixels: red, green / blue, white  (B,G,R,A)
         let px = [
             0u8, 0, 255, 0, // red (alpha 0 → forced opaque)
             0, 255, 0, 0, // green

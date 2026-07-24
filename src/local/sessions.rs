@@ -206,8 +206,7 @@ pub fn rename_session(summary_path: &Path, new_title: &str) -> Result<()> {
     }
     let text = std::fs::read_to_string(summary_path)
         .with_context(|| format!("read {}", summary_path.display()))?;
-    let mut v: serde_json::Value =
-        serde_json::from_str(&text).context("parse summary.json")?;
+    let mut v: serde_json::Value = serde_json::from_str(&text).context("parse summary.json")?;
     v["generated_title"] = serde_json::Value::String(title.to_string());
     v["session_summary"] = serde_json::Value::String(title.to_string());
     let out = serde_json::to_string_pretty(&v)?;
@@ -222,9 +221,7 @@ pub fn delete_session(session_dir: &Path) -> Result<()> {
         bail!("no GROK_HOME");
     };
     let root = home.join("sessions");
-    let root = root
-        .canonicalize()
-        .unwrap_or(root);
+    let root = root.canonicalize().unwrap_or(root);
     let dir = session_dir
         .canonicalize()
         .with_context(|| format!("resolve {}", session_dir.display()))?;
@@ -234,8 +231,7 @@ pub fn delete_session(session_dir: &Path) -> Result<()> {
     if !dir.is_dir() {
         bail!("会话目录不存在");
     }
-    std::fs::remove_dir_all(&dir)
-        .with_context(|| format!("remove {}", dir.display()))?;
+    std::fs::remove_dir_all(&dir).with_context(|| format!("remove {}", dir.display()))?;
     Ok(())
 }
 
@@ -455,9 +451,11 @@ pub fn parse_updates_jsonl(text: &str, max_items: usize) -> Vec<TimelineItem> {
                     title,
                     detail,
                     ..
-                }) = items.iter_mut().rev().find(|i| {
-                    matches!(i, TimelineItem::Tool { id: tid, .. } if tid == id)
-                }) {
+                }) = items
+                    .iter_mut()
+                    .rev()
+                    .find(|i| matches!(i, TimelineItem::Tool { id: tid, .. } if tid == id))
+                {
                     if let Some(st) = update.get("status").and_then(|x| x.as_str()) {
                         *status = st.to_string();
                     }
@@ -469,9 +467,7 @@ pub fn parse_updates_jsonl(text: &str, max_items: usize) -> Vec<TimelineItem> {
                     // Append text content if present
                     if let Some(arr) = update.get("content").and_then(|c| c.as_array()) {
                         for item in arr {
-                            if let Some(t) = item
-                                .pointer("/content/text")
-                                .and_then(|t| t.as_str())
+                            if let Some(t) = item.pointer("/content/text").and_then(|t| t.as_str())
                             {
                                 if !t.is_empty() {
                                     if !detail.is_empty() {

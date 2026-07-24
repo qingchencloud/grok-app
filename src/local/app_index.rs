@@ -5,9 +5,7 @@
 //! appear only after an explicit import.
 
 use crate::config::{grok_home, AppConfig};
-use crate::local::sessions::{
-    delete_session, parse_summary_json, scan_sessions, LocalSession,
-};
+use crate::local::sessions::{delete_session, parse_summary_json, scan_sessions, LocalSession};
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -154,9 +152,11 @@ fn find_dir_by_id(dir: &Path, id: &str) -> Option<PathBuf> {
 impl AppSessionRecord {
     pub fn to_local(&self) -> LocalSession {
         let path = resolve_session_dir(self).unwrap_or_else(|| {
-            PathBuf::from(self.session_path.clone().unwrap_or_else(|| {
-                format!("(missing)/{}", self.id)
-            }))
+            PathBuf::from(
+                self.session_path
+                    .clone()
+                    .unwrap_or_else(|| format!("(missing)/{}", self.id)),
+            )
         });
         let summary_path = path.join("summary.json");
         LocalSession {
@@ -189,10 +189,7 @@ impl AppSessionRecord {
                 .created_at
                 .map(|t| t.to_rfc3339())
                 .or_else(|| Some(now.clone())),
-            updated_at: s
-                .updated_at
-                .map(|t| t.to_rfc3339())
-                .or_else(|| Some(now)),
+            updated_at: s.updated_at.map(|t| t.to_rfc3339()).or_else(|| Some(now)),
             num_messages: s.num_messages,
             origin,
             session_path: Some(s.path.display().to_string()),
@@ -326,7 +323,9 @@ pub fn touch_session(
     } else {
         // First time we see this id from the agent — register as app session
         let path = find_cli_session_dir(id).map(|p| p.display().to_string());
-        let mut title = title_hint.unwrap_or(crate::i18n::t().new_session_title).to_string();
+        let mut title = title_hint
+            .unwrap_or(crate::i18n::t().new_session_title)
+            .to_string();
         if title.trim().is_empty() {
             title = crate::i18n::t().new_session_title.into();
         }
@@ -416,7 +415,10 @@ pub fn import_cli_session(s: &LocalSession) -> Result<()> {
         upsert_record(rec, true)?;
         return Ok(());
     }
-    upsert_record(AppSessionRecord::from_local(s, SessionOrigin::CliImport), true)
+    upsert_record(
+        AppSessionRecord::from_local(s, SessionOrigin::CliImport),
+        true,
+    )
 }
 
 /// CLI sessions not yet in the App index (for import picker).

@@ -52,7 +52,8 @@ fn process_alive(pid: u32) -> bool {
     {
         use windows_sys::Win32::Foundation::{CloseHandle, WAIT_TIMEOUT};
         use windows_sys::Win32::System::Threading::{
-            OpenProcess, WaitForSingleObject, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
+            OpenProcess, WaitForSingleObject, PROCESS_QUERY_LIMITED_INFORMATION,
+            PROCESS_SYNCHRONIZE,
         };
         // 0x1000 = PROCESS_QUERY_LIMITED_INFORMATION, SYNCHRONIZE = 0x00100000
         const ACCESS: u32 = PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE;

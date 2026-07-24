@@ -17,11 +17,7 @@ fn main() {
         let mut bmp = Vec::new();
         match Bitmap.read_clipboard(&mut bmp) {
             Ok(n) => {
-                println!(
-                    "Bitmap n={n} bytes={} magic={:?}",
-                    bmp.len(),
-                    bmp.get(0..4)
-                );
+                println!("Bitmap n={n} bytes={} magic={:?}", bmp.len(), bmp.get(0..4));
                 let _ = std::fs::write("target/clip_bitmap.bin", &bmp);
             }
             Err(e) => println!("Bitmap err: {e}"),

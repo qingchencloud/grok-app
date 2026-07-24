@@ -145,10 +145,7 @@ impl AcpClient {
             tokio::spawn(async move {
                 let code = wait_child(child).await;
                 inner.alive.store(false, Ordering::SeqCst);
-                if !inner
-                    .exited_notified
-                    .swap(true, Ordering::SeqCst)
-                {
+                if !inner.exited_notified.swap(true, Ordering::SeqCst) {
                     let _ = inner.event_tx.send(AgentEvent::AgentExited {
                         code,
                         pid: child_pid,
@@ -287,10 +284,7 @@ impl AcpClient {
         }
         if let Some(boot) = history_bootstrap {
             if !boot.is_empty() {
-                blocks.insert(
-                    0,
-                    json!({ "type": "text", "text": boot }),
-                );
+                blocks.insert(0, json!({ "type": "text", "text": boot }));
             }
         }
 
@@ -336,12 +330,8 @@ impl AcpClient {
 
     /// Prompt with plain text only.
     pub async fn prompt_text(&self, text: &str, cwd: &str) -> Result<String> {
-        self.prompt_blocks(
-            vec![json!({ "type": "text", "text": text })],
-            cwd,
-            None,
-        )
-        .await
+        self.prompt_blocks(vec![json!({ "type": "text", "text": text })], cwd, None)
+            .await
     }
 
     pub async fn cancel(&self) -> Result<()> {
@@ -568,7 +558,10 @@ impl ClientInner {
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
-                let line = params.get("line").and_then(|v| v.as_u64()).map(|n| n as usize);
+                let line = params
+                    .get("line")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize);
                 let limit = params
                     .get("limit")
                     .and_then(|v| v.as_u64())
@@ -841,9 +834,9 @@ fn read_text_file_host(
     // Detect obvious binary by extension first
     let lower = path.to_ascii_lowercase();
     let binary_ext = [
-        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".pdf", ".zip",
-        ".exe", ".dll", ".so", ".dylib", ".wasm", ".mp4", ".mp3", ".wav", ".7z",
-        ".rar", ".gz", ".tar", ".woff", ".woff2", ".ttf", ".otf",
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".pdf", ".zip", ".exe", ".dll",
+        ".so", ".dylib", ".wasm", ".mp4", ".mp3", ".wav", ".7z", ".rar", ".gz", ".tar", ".woff",
+        ".woff2", ".ttf", ".otf",
     ];
     if binary_ext.iter().any(|e| lower.ends_with(e)) {
         return Ok(format!(

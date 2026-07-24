@@ -166,8 +166,7 @@ pub fn merge_config_toml(existing: &str, cfg: &CliTomlConfig) -> String {
     doc["ui"]["max_thoughts_width"] = value(cfg.max_thoughts_width);
 
     ensure_table(&mut doc, "session");
-    doc["session"]["auto_compact_threshold_percent"] =
-        value(cfg.auto_compact_threshold_percent);
+    doc["session"]["auto_compact_threshold_percent"] = value(cfg.auto_compact_threshold_percent);
     doc["session"]["load_envrc"] = value(cfg.load_envrc);
 
     ensure_table(&mut doc, "features");
@@ -199,7 +198,10 @@ pub fn parse_toml(s: &str) -> CliTomlConfig {
     };
 
     if let Some(t) = v.get("cli") {
-        c.auto_update = t.get("auto_update").and_then(|x| x.as_bool()).unwrap_or(c.auto_update);
+        c.auto_update = t
+            .get("auto_update")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(c.auto_update);
     }
     if let Some(t) = v.get("models") {
         if let Some(m) = t.get("default").and_then(|x| x.as_str()) {
@@ -215,7 +217,10 @@ pub fn parse_toml(s: &str) -> CliTomlConfig {
             .get("compact_mode")
             .and_then(|x| x.as_bool())
             .unwrap_or(c.compact_mode);
-        c.vim_mode = t.get("vim_mode").and_then(|x| x.as_bool()).unwrap_or(c.vim_mode);
+        c.vim_mode = t
+            .get("vim_mode")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(c.vim_mode);
         c.show_thinking_blocks = t
             .get("show_thinking_blocks")
             .and_then(|x| x.as_bool())

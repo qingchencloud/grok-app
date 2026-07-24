@@ -10,7 +10,8 @@ use grok_app::attachments::{build_prompt_blocks, from_bytes, from_paste_payload}
 fn inbound_request_not_misparsed_as_response() {
     // Regression: untagged enum used to match Response first (optional result/error),
     // swallowing fs/read_text_file → tools hung with xaiAcpChannelFailure recv_failed.
-    let line = r#"{"jsonrpc":"2.0","id":42,"method":"fs/read_text_file","params":{"path":"Cargo.toml"}}"#;
+    let line =
+        r#"{"jsonrpc":"2.0","id":42,"method":"fs/read_text_file","params":{"path":"Cargo.toml"}}"#;
     let msg: InboundMessage = serde_json::from_str(line).expect("parse request");
     match msg {
         InboundMessage::Request { method, id, .. } => {
@@ -186,7 +187,9 @@ fn parse_updates_jsonl_streams_user_and_assistant() {
         "assistant merge missing: {items:?}"
     );
     assert!(
-        items.iter().any(|i| matches!(i, grok_app::acp::TimelineItem::Tool { title, .. } if title == "read_file")),
+        items.iter().any(
+            |i| matches!(i, grok_app::acp::TimelineItem::Tool { title, .. } if title == "read_file")
+        ),
         "tool missing: {items:?}"
     );
     assert!(
@@ -199,10 +202,7 @@ fn parse_updates_jsonl_streams_user_and_assistant() {
 fn paste_payload_data_uri() {
     // 1x1 red png as data URI
     let png = tiny_png();
-    let b64 = base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        png,
-    );
+    let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, png);
     let uri = format!("data:image/png;base64,{b64}");
     let img = from_paste_payload(&uri).expect("data URI paste");
     assert!(img.png_bytes.len() > 8);
