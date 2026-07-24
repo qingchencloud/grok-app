@@ -1,6 +1,8 @@
-# Deploys the static bilingual landing page (preview/) to GitHub Pages.
-# Enable Pages in repo Settings → Pages → Source: GitHub Actions.
-# Safe for private repos (Pages access follows org plan).
+# Build + deploy landing page (preview/).
+#
+# Private free-org repos cannot use GitHub Pages → deploy-pages may fail (continue-on-error).
+# Optional: set secret SITE_DEPLOY_TOKEN (PAT with repo scope) to mirror to public
+# qingchencloud/grok-app-web which CAN host Pages for free.
 
 name: Pages
 
@@ -23,23 +25,123 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Assemble site
         run: |
+          set -euo pipefail
           mkdir -p _site
-          cp -r preview/* _site/
-          mkdir -p _site/assets
-          cp -r assets/* _site/assets/
-          # Fix relative asset paths for root-hosted Pages
-          sed -i 's|\.\./assets/|assets/|g' _site/index.html || true
+          cp preview/index.html _site/
+          cp preview/robots.txt _site/ 2>/dev/null || true
+          cp preview/sitemap.xml _site/ 2>/dev/null || true
+          if [ -d preview/assets ]; then
+            cp -r preview/assets _site/assets
+          else
+            mkdir -p _site/assets
+            cp -r assets/* _site/assets/
+          fi
+          sed -i 's|\.\./assets/|assets/|g' _site/index.html
+          test -f _site/index.html
+          test -f _site/assets/logo.png
+          ls -la _site _site/assets | head -40
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+      - uses: actions/upload-artifact@v4
+        with:
+          name: landing-site
+          path: _site
+
+  deploy-pages:
+    needs: build
+    continue-on-error: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  mirror-public:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: landing-site
+          path: site
+      - name: Mirror to public grok-app-web
+        env:
+          TOKEN: ${{ secrets.SITE_DEPLOY_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Prefer PAT so we can create/push a public repo; else skip
+          AUTH="${TOKEN:-}"
+          if [ -z "$AUTH" ]; then
+            echo "SITE_DEPLOY_TOKEN not set — skipping public mirror."
+            echo "Create a classic PAT (repo scope) as secret SITE_DEPLOY_TOKEN to enable free Pages at:"
+            echo "  https://qingchencloud.github.io/grok-app-web/"
+            exit 0
+          fi
+          API="https://api.github.com"
+          HDR=(-H "Authorization: token $AUTH" -H "Accept: application/vnd.github+json")
+          # Create public site repo if missing
+          code=$(curl -sS -o /tmp/repo.json -w "%{http_code}" "${HDR[@]}" "$API/repos/qingchencloud/grok-app-web" || true)
+          if [ "$code" = "404" ]; then
+            curl -sS -X POST "${HDR[@]}" "$API/orgs/qingchencloud/repos" \
+              -d '{"name":"grok-app-web","description":"Grok Desktop product landing (public Pages)","homepage":"https://qingchencloud.github.io/grok-app-web/","private":false,"auto_init":true,"has_issues":false}'
+          fi
+          rm -rf web
+          git clone --depth 1 "https://x-access-token:${AUTH}@github.com/qingchencloud/grok-app-web.git" web
+          find web -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a site/. web/
+          mkdir -p web/.github/workflows
+          cat > web/.github/workflows/pages.yml <<'EOF'
+          name: Pages
+          on:
+            push:
+              branches: [main, master]
+            workflow_dispatch:
+          permissions:
+            contents: read
+            pages: write
+            id-token: write
+          concurrency:
+            group: pages
+            cancel-in-progress: true
+          jobs:
+            deploy:
+              environment:
+                name: github-pages
+                url: ${{ steps.deployment.outputs.page_url }}
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/upload-pages-artifact@v3
+                  with:
+                    path: .
+                - id: deployment
+                  uses: actions/deploy-pages@v4
+          EOF
+          # Fix indented YAML from heredoc spaces
+          sed -i 's/^          //' web/.github/workflows/pages.yml
+          cd web
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "deploy: landing from grok-app"
+            git push origin HEAD:main
+          fi
+          # Enable Pages (Actions) on public repo
+          curl -sS -X POST "${HDR[@]}" "$API/repos/qingchencloud/grok-app-web/pages" \
+            -d '{"build_type":"workflow"}' || \
+          curl -sS -X PUT "${HDR[@]}" "$API/repos/qingchencloud/grok-app-web/pages" \
+            -d '{"build_type":"workflow","source":{"branch":"main","path":"/"}}' || true

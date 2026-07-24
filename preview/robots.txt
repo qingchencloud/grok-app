@@ -1,7 +1,3 @@
 User-agent: *
 Allow: /
-
-Allow: /?lang=en
-Allow: /?lang=zh
-
-Sitemap: sitemap.xml
+Sitemap: https://qingchencloud.github.io/grok-app-web/sitemap.xml
