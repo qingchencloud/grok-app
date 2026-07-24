@@ -1,0 +1,39 @@
+# Build / release artifacts
+/target/
+/dist/
+**/*.pdb
+**/*.exe
+!packaging/**
+
+# Local reference clones (do not ship)
+/vendor/
+/reference/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs & crash dumps
+*.log
+crash.log
+*.dmp
+
+# Secrets / local env
+.env
+.env.*
+*.pem
+*.key
+auth.json
+
+# Scratch / agent temp (never commit)
+/scripts/_*.py
+/tmp/
+/.cache/
+
+# Optional local overrides
+/config.local.*

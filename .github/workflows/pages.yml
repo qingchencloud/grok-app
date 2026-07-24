@@ -1,0 +1,45 @@
+# Deploys the static bilingual landing page (preview/) to GitHub Pages.
+# Enable Pages in repo Settings → Pages → Source: GitHub Actions.
+# Safe for private repos (Pages access follows org plan).
+
+name: Pages
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "preview/**"
+      - "assets/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp -r preview/* _site/
+          mkdir -p _site/assets
+          cp -r assets/* _site/assets/
+          # Fix relative asset paths for root-hosted Pages
+          sed -i 's|\.\./assets/|assets/|g' _site/index.html || true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

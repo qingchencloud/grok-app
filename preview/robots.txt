@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Allow: /?lang=en
+Allow: /?lang=zh
+
+Sitemap: sitemap.xml

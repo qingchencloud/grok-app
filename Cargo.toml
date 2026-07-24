@@ -1,0 +1,61 @@
+[package]
+name = "grok_app"
+version = "0.1.0"
+edition = "2021"
+description = "Grok App / Grok Desktop — unofficial native GUI over the official Grok Build CLI (ACP)"
+license = "MIT"
+readme = "README.md"
+authors = ["QingChen Cloud"]
+repository = "https://github.com/qingchencloud/grok-app"
+keywords = ["grok", "xai", "egui", "desktop", "agent", "acp", "cli"]
+categories = ["gui", "command-line-utilities"]
+autobins = false
+
+[[bin]]
+name = "GrokDesktop"
+path = "src/main.rs"
+
+[dependencies]
+eframe = { version = "0.31", default-features = true, features = ["persistence"] }
+egui = "0.31"
+egui_extras = { version = "0.31", features = ["all_loaders"] }
+egui_commonmark = "0.20"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util"] }
+dirs = "6"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+log = "0.4"
+rfd = "0.15"
+parking_lot = "0.12"
+which = "7"
+toml = "0.8"
+toml_edit = "0.22"
+# arboard is pulled in by eframe/egui-winit for text paste only.
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+
+[target.'cfg(windows)'.dependencies]
+clipboard-win = { version = "5.4", features = ["std"] }
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+    "Win32_System_Threading",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = 3
