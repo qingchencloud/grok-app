@@ -42,8 +42,8 @@ RestartApplications=no
 LicenseFile=..\LICENSE
 
 [Languages]
+; English only in the wizard (app itself is EN/ZH). Avoids missing ISL on CI.
 Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
