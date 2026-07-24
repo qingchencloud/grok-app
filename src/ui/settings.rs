@@ -3,10 +3,10 @@
 use crate::config::{effort_label, normalize_effort, resolve_grok_binary, AppConfig, MODELS};
 use crate::local::install::{probe_status, probe_status_fast, CliInstallStatus, INSTALL_URL};
 use crate::local::{CliTomlConfig, LocalSession};
-use crate::update::UpdateUiState;
 use crate::ui::icons::{self, IconKind};
 use crate::ui::theme;
 use crate::ui::widgets::{ghost_button, primary_button};
+use crate::update::UpdateUiState;
 use eframe::egui;
 use egui::{
     Align, Color32, Frame, Layout, Margin, Order, RichText, ScrollArea, Sense, Shadow, Stroke,
@@ -1280,14 +1280,8 @@ fn tab_about(
     section(ui, s.links, "", |ui| {
         ui.hyperlink_to(s.link_xai_cli, "https://x.ai/cli");
         ui.hyperlink_to(s.link_grok_build, "https://github.com/xai-org/grok-build");
-        ui.hyperlink_to(
-            s.ref_client,
-            "https://github.com/qingchencloud/grok-app",
-        );
-        ui.hyperlink_to(
-            s.update_open_releases,
-            crate::update::RELEASES_URL,
-        );
+        ui.hyperlink_to(s.ref_client, "https://github.com/qingchencloud/grok-app");
+        ui.hyperlink_to(s.update_open_releases, crate::update::RELEASES_URL);
     });
 
     section(ui, s.capabilities, "", |ui| {

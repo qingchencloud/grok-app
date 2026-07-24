@@ -13,7 +13,6 @@ use crate::local::{
 };
 use crate::session_store::{PendingPermission, SessionStore, TurnPhase};
 use crate::stream::SmoothStream;
-use crate::update::{self, UpdateCheckResult, UpdateUiState};
 use crate::ui::chat_view;
 use crate::ui::icons::{self, IconKind};
 use crate::ui::settings::{draw_settings, SettingsState, SettingsTab};
@@ -24,6 +23,7 @@ use crate::ui::widgets::{
     search_field, session_row, soft_action, status_dot, status_pill, tree_section_head,
     SessionActivity,
 };
+use crate::update::{self, UpdateCheckResult, UpdateUiState};
 use eframe::egui;
 use egui::{
     Align, Color32, Frame, Key, Layout, Margin, RichText, ScrollArea, Stroke, TextEdit, Ui,
@@ -320,11 +320,7 @@ impl GrokApp {
             .update
             .selected_release()
             .and_then(|r| r.setup_url.clone().or_else(|| r.portable_url.clone()))
-            .or_else(|| {
-                self.update
-                    .selected_release()
-                    .map(|r| r.html_url.clone())
-            })
+            .or_else(|| self.update.selected_release().map(|r| r.html_url.clone()))
             .unwrap_or_else(|| update::LATEST_URL.to_string());
         update::open_url(&url);
     }
@@ -4420,8 +4416,7 @@ impl GrokApp {
                 .unwrap_or(false)
         }) {
             ctx.memory_mut(|m| {
-                m.data
-                    .remove::<bool>(egui::Id::new("update_scrim_clicked"));
+                m.data.remove::<bool>(egui::Id::new("update_scrim_clicked"));
             });
             self.dismiss_update_modal();
             return;
@@ -4546,15 +4541,11 @@ impl GrokApp {
                         for (tag, _name) in &history {
                             let active = tag == &selected;
                             let resp = ui.add(
-                                egui::Button::new(
-                                    RichText::new(tag)
-                                        .size(11.5)
-                                        .color(if active {
-                                            theme::ON_ACCENT()
-                                        } else {
-                                            theme::TEXT_2()
-                                        }),
-                                )
+                                egui::Button::new(RichText::new(tag).size(11.5).color(if active {
+                                    theme::ON_ACCENT()
+                                } else {
+                                    theme::TEXT_2()
+                                }))
                                 .fill(if active {
                                     theme::ACCENT()
                                 } else if theme::is_dark() {
@@ -4600,11 +4591,7 @@ impl GrokApp {
                                 ui.set_min_width(ui.available_width());
                                 // Plain text changelog (markdown-ish from GitHub)
                                 if body.trim().is_empty() {
-                                    ui.label(
-                                        RichText::new("—")
-                                            .size(13.0)
-                                            .color(theme::TEXT_3()),
-                                    );
+                                    ui.label(RichText::new("—").size(13.0).color(theme::TEXT_3()));
                                 } else {
                                     for line in body.lines() {
                                         let t = line.trim_end();
@@ -4642,9 +4629,7 @@ impl GrokApp {
                                             ui.add_space(4.0);
                                         } else {
                                             ui.label(
-                                                RichText::new(t)
-                                                    .size(13.0)
-                                                    .color(theme::TEXT_2()),
+                                                RichText::new(t).size(13.0).color(theme::TEXT_2()),
                                             );
                                         }
                                     }

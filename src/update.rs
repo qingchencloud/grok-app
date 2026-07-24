@@ -12,10 +12,8 @@ pub const GITHUB_REPO: &str = "grok-app";
 pub const RELEASES_URL: &str = "https://github.com/qingchencloud/grok-app/releases";
 pub const LATEST_URL: &str = "https://github.com/qingchencloud/grok-app/releases/latest";
 
-const API_LATEST: &str =
-    "https://api.github.com/repos/qingchencloud/grok-app/releases/latest";
-const API_LIST: &str =
-    "https://api.github.com/repos/qingchencloud/grok-app/releases?per_page=12";
+const API_LATEST: &str = "https://api.github.com/repos/qingchencloud/grok-app/releases/latest";
+const API_LIST: &str = "https://api.github.com/repos/qingchencloud/grok-app/releases?per_page=12";
 const USER_AGENT: &str = "GrokDesktop-UpdateCheck/0.1 (+https://github.com/qingchencloud/grok-app)";
 
 #[derive(Debug, Clone)]
@@ -199,9 +197,7 @@ fn demo_update_result(current: &str) -> UpdateCheckResult {
 fn fetch_updates(current: &str) -> Result<(ReleaseInfo, Vec<ReleaseInfo>, bool)> {
     let latest_raw = http_get_json(API_LATEST)?;
     let latest = parse_release(&latest_raw)?;
-    let list_raw = http_get_json(API_LIST).unwrap_or_else(|_| {
-        serde_json::json!([])
-    });
+    let list_raw = http_get_json(API_LIST).unwrap_or_else(|_| serde_json::json!([]));
     let mut history = Vec::new();
     if let Some(arr) = list_raw.as_array() {
         for item in arr {
@@ -286,7 +282,9 @@ fn parse_release(v: &serde_json::Value) -> Result<ReleaseInfo> {
             if lower.contains("setup") && lower.ends_with(".exe") {
                 setup_url = Some(url.to_string());
                 setup_name = Some(n.to_string());
-            } else if lower.contains("windows") && lower.ends_with(".exe") && !lower.contains("setup")
+            } else if lower.contains("windows")
+                && lower.ends_with(".exe")
+                && !lower.contains("setup")
             {
                 portable_url = Some(url.to_string());
             }

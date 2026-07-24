@@ -4,9 +4,9 @@
 use crate::config::{grok_home, resolve_grok_binary};
 use anyhow::{bail, Context, Result};
 use std::path::PathBuf;
-use std::process::Stdio;
 #[cfg(not(windows))]
 use std::process::Command;
+use std::process::Stdio;
 use std::sync::mpsc;
 
 pub const INSTALL_URL: &str = "https://x.ai/cli/install.ps1";
