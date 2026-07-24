@@ -11,10 +11,40 @@
 └─────────────────┘   session/update      └──────────────────────┘
 ```
 
-- **Repo:** private working tree under `qingchencloud/grok-app` (public later)
-- **UI languages:** English (default) · 中文 — Settings → Appearance → Language  
-- **中文文档:** [docs/zh/README.md](docs/zh/README.md)  
-- **Landing page:** [preview/](preview/) (static bilingual site)
+| | |
+|--|--|
+| **Repo** | [`qingchencloud/grok-app`](https://github.com/qingchencloud/grok-app) (private until ready) |
+| **UI language** | English (default) · 中文 — *Settings → Appearance → Language* |
+| **中文文档** | [docs/zh/README.md](docs/zh/README.md) |
+| **Download clients** | **[Releases](https://github.com/qingchencloud/grok-app/releases)** ← versioned zips |
+| **How to cut a release** | [docs/RELEASE.md](docs/RELEASE.md) |
+| **Config reference** | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) |
+| **What not to upload** | [docs/REPO_HYGIENE.md](docs/REPO_HYGIENE.md) |
+| **Landing page** | [preview/](preview/) |
+
+## Download (end users)
+
+1. Open **[Releases](https://github.com/qingchencloud/grok-app/releases)**  
+2. Pick a version (e.g. `v0.1.0`)  
+3. Download:
+   - **Windows:** `GrokDesktop-<ver>-windows-x64.zip`  
+   - **macOS:** `GrokDesktop-<ver>-macos-*.zip`  
+4. Unzip → run `Launch.bat` (Windows) or `./GrokDesktop` (macOS)  
+5. Install & login CLI if needed:
+
+```powershell
+# Windows
+irm https://x.ai/cli/install.ps1 | iex
+grok login
+```
+
+```bash
+# macOS / Linux
+curl -fsSL https://x.ai/cli/install.sh | bash
+grok login
+```
+
+> Private repo: only people with access can download until the repo is public.
 
 ## Features
 
@@ -33,51 +63,54 @@
 
 1. [Grok Build CLI](https://x.ai/cli)  
 2. `grok login` once  
-3. Rust toolchain for development
+3. Rust toolchain **only if building from source**
 
-## Build & run
+## Build from source
 
 ```bash
 git clone https://github.com/qingchencloud/grok-app.git
 cd grok-app
-
-# Dev (watch + restart on Windows)
-# .\dev.ps1
-
 cargo run --bin GrokDesktop
 cargo test --test core_logic
 cargo build --release
-# → target/release/GrokDesktop.exe
+# → target/release/GrokDesktop(.exe)
 ```
 
-Packaging (Windows):
+Windows packaging:
 
 ```powershell
 .\packaging\build-release.ps1
+# → dist\GrokDesktop-<ver>-windows-x64-*.zip
 ```
+
+## CI & releases
+
+| Workflow | Trigger | Output |
+|----------|---------|--------|
+| **CI** | push / PR | Tests + build check |
+| **Release** | tag `v*.*.*` or manual | **GitHub Release** with downloadable zips |
+| **Pages** | `preview/**` | Static landing (enable Pages in settings) |
+
+**Publish a version:**
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+# or: Actions → Release → Run workflow → version 0.1.0
+```
+
+See [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Configuration
 
-App config: `%APPDATA%\GrokApp\config.json` (or platform equivalent)
+User settings live **outside the repo** (`%APPDATA%\GrokApp\config.json`).  
+Auth lives in **`~/.grok/auth.json`** (CLI). Never commit secrets.  
 
-| Key | Meaning |
-|-----|---------|
-| `ui_locale` | `en` (default) or `zh` |
-| `dark_mode` | Theme |
-| `model` / `effort` | Agent defaults |
-| `user_display_name` / `user_avatar_path` | Chat identity |
-
-## CI
-
-GitHub Actions (`.github/workflows/ci.yml`):
-
-- `cargo fmt --check`
-- `cargo test`
-- `cargo build --release` (Windows job)
+Defaults (model list, install URL, etc.) are documented in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 ## Topics / keywords
 
-`grok` · `grok-app` · `grok-desktop` · `GrokDesktop` · `xai` · `xAI` · `grok-build` · `ACP` · `agent-client-protocol` · `rust` · `egui` · `eframe` · `desktop` · `ai-agent` · `coding-agent` · `stdio` · `cli-gui` · `qingchencloud`
+`grok` · `grok-app` · `grok-desktop` · `GrokDesktop` · `xai` · `ACP` · `agent-client-protocol` · `rust` · `egui` · `eframe` · `desktop` · `ai-agent` · `coding-agent` · `cli` · `stdio` · `qingchencloud`
 
 ## License
 

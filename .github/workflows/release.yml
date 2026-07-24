@@ -1,0 +1,228 @@
+# Build versioned client packages and attach them to a GitHub Release.
+#
+# Trigger A — push a tag:
+#   git tag v0.1.0
+#   git push origin v0.1.0
+#
+# Trigger B — Actions UI (manual):
+#   Actions → Release → Run workflow → enter version 0.1.0
+#
+# Downloads: repo → Releases → assets (zip). Keep the repo private: only
+# collaborators can download until you go public.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver WITHOUT leading v (e.g. 0.1.0). Creates tag v{version} on main."
+        required: true
+        default: "0.1.0"
+      draft:
+        description: "Create as draft release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  PRODUCT: GrokDesktop
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.out.outputs.version }}
+      tag: ${{ steps.out.outputs.tag }}
+    steps:
+      - id: out
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ inputs.version }}"
+            V="${V#v}"
+          else
+            REF="${GITHUB_REF_NAME}"
+            V="${REF#v}"
+          fi
+          if ! [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+            echo "Invalid version: $V"
+            exit 1
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=v$V" >> "$GITHUB_OUTPUT"
+          echo "Resolved version=$V tag=v$V"
+
+  build-windows:
+    name: Windows x64
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Sync Cargo.toml version
+        shell: bash
+        run: |
+          V="${{ needs.version.outputs.version }}"
+          sed -i "s/^version = \".*\"/version = \"$V\"/" Cargo.toml
+          grep '^version' Cargo.toml
+      - name: Test
+        run: cargo test --test core_logic
+      - name: Release build
+        run: cargo build --release --bin GrokDesktop
+      - name: Package zip
+        shell: pwsh
+        run: |
+          $V = "${{ needs.version.outputs.version }}"
+          $Name = "GrokDesktop-$V-windows-x64"
+          $Stage = "dist/$Name"
+          New-Item -ItemType Directory -Force -Path $Stage | Out-Null
+          Copy-Item target/release/GrokDesktop.exe $Stage/
+          Copy-Item packaging/Install.ps1, packaging/Uninstall.ps1, packaging/README.txt, packaging/LICENSE.txt $Stage/ -ErrorAction SilentlyContinue
+          Copy-Item LICENSE $Stage/LICENSE -ErrorAction SilentlyContinue
+          Set-Content -Path "$Stage/VERSION.txt" -Value $V -NoNewline
+          @"
+          @echo off
+          cd /d "%~dp0"
+          start "" "%~dp0GrokDesktop.exe"
+          "@ | Set-Content -Path "$Stage/Launch.bat" -Encoding ASCII
+          @"
+          @echo off
+          chcp 65001 >nul
+          cd /d "%~dp0"
+          powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install.ps1"
+          if errorlevel 1 pause
+          "@ | Set-Content -Path "$Stage/Install.bat" -Encoding ASCII
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          if (Test-Path "dist/$Name.zip") { Remove-Item "dist/$Name.zip" -Force }
+          Compress-Archive -Path $Stage -DestinationPath "dist/$Name.zip" -Force
+          Get-FileHash "dist/$Name.zip" -Algorithm SHA256 | ForEach-Object {
+            "$($_.Hash.ToLowerInvariant())  $Name.zip" | Out-File -FilePath "dist/$Name.sha256" -Encoding ascii
+          }
+          Get-ChildItem dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+
+  build-macos:
+    name: macOS
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Sync Cargo.toml version
+        run: |
+          V="${{ needs.version.outputs.version }}"
+          sed -i '' "s/^version = \".*\"/version = \"$V\"/" Cargo.toml
+          grep '^version' Cargo.toml
+      - name: Test
+        run: cargo test --test core_logic
+      - name: Release build
+        run: cargo build --release --bin GrokDesktop
+      - name: Package zip
+        run: |
+          V="${{ needs.version.outputs.version }}"
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            arm64) A=aarch64 ;;
+            x86_64) A=x86_64 ;;
+            *) A=$ARCH ;;
+          esac
+          Name="GrokDesktop-$V-macos-$A"
+          mkdir -p "dist/$Name"
+          cp target/release/GrokDesktop "dist/$Name/"
+          cp LICENSE "dist/$Name/" 2>/dev/null || true
+          cp packaging/LICENSE.txt "dist/$Name/" 2>/dev/null || true
+          echo "$V" > "dist/$Name/VERSION.txt"
+          chmod +x "dist/$Name/GrokDesktop"
+          (cd dist && zip -r "$Name.zip" "$Name")
+          (cd dist && shasum -a 256 "$Name.zip" | tee "$Name.sha256")
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+
+  publish:
+    name: GitHub Release
+    needs: [version, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: List assets
+        run: find release-assets -type f | sort
+      - name: Ensure tag exists (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.version.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
+      - name: Create / update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: Grok Desktop ${{ needs.version.outputs.tag }}
+          draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
+          generate_release_notes: true
+          body: |
+            ## Grok Desktop ${{ needs.version.outputs.tag }}
+
+            Unofficial native GUI over the official **Grok Build CLI** (`grok agent stdio`).
+
+            ### Downloads
+            | Platform | Asset |
+            |----------|--------|
+            | Windows x64 | `GrokDesktop-*-windows-x64.zip` |
+            | macOS | `GrokDesktop-*-macos-*.zip` |
+
+            ### Windows
+            1. Download the **windows-x64** zip  
+            2. Unzip → run `Launch.bat` (portable) **or** `Install.bat`  
+            3. Install & login CLI if needed: `irm https://x.ai/cli/install.ps1 | iex` then `grok login`
+
+            ### macOS
+            1. Download the **macos** zip  
+            2. Unzip → run `./GrokDesktop` (may need: System Settings → Privacy → allow)  
+            3. Install CLI: `curl -fsSL https://x.ai/cli/install.sh | bash` then `grok login`
+
+            ### Notes
+            - This app does **not** embed your API key; auth stays with the CLI (`~/.grok`).  
+            - UI languages: English (default) · 中文 — Settings → Language.  
+            - SHA256 files are attached next to each zip.
+          files: |
+            release-assets/**/*.zip
+            release-assets/**/*.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -11,7 +11,9 @@
 [CmdletBinding()]
 param(
     [switch]$SkipBuild,
-    [switch]$OpenDist
+    [switch]$OpenDist,
+    # Override Cargo.toml version for this package (e.g. CI: -Version 0.1.1)
+    [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,12 +32,15 @@ if (-not (Test-Path (Join-Path $Root "Cargo.toml"))) {
 }
 Set-Location -LiteralPath $Root
 
-$CargoToml = Get-Content -LiteralPath (Join-Path $Root "Cargo.toml") -Raw
-if ($CargoToml -match 'version\s*=\s*"([^"]+)"') {
-    $Version = $Matches[1]
-} else {
-    $Version = "0.1.0"
+if (-not $Version) {
+    $CargoToml = Get-Content -LiteralPath (Join-Path $Root "Cargo.toml") -Raw
+    if ($CargoToml -match 'version\s*=\s*"([^"]+)"') {
+        $Version = $Matches[1]
+    } else {
+        $Version = "0.1.0"
+    }
 }
+$Version = $Version.TrimStart('v')
 
 $Arch = "x64"
 $Product = "GrokDesktop"

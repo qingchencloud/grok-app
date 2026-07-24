@@ -1,11 +1,12 @@
-# Build / release artifacts
+# ── Never commit ──────────────────────────────────────────────
+# Build / package output
 /target/
 /dist/
 **/*.pdb
-**/*.exe
+*.exe
 !packaging/**
 
-# Local reference clones (do not ship)
+# Local reference clones (third-party / huge)
 /vendor/
 /reference/
 
@@ -23,17 +24,27 @@ Desktop.ini
 crash.log
 *.dmp
 
-# Secrets / local env
+# Secrets / local env (never ship)
 .env
 .env.*
 *.pem
 *.key
 auth.json
+**/auth.json
+**/credentials*
+**/secrets*
 
-# Scratch / agent temp (never commit)
+# Local app data accidentally copied into repo
+/attachments/
+/sessions_index.json
+
+# Scratch / one-off agent scripts
 /scripts/_*.py
 /tmp/
 /.cache/
+*.tmp
 
 # Optional local overrides
 /config.local.*
+*.local.toml
+*.local.json

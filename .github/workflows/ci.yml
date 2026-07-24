@@ -44,12 +44,15 @@ jobs:
         run: cargo test --test core_logic
       - name: release
         run: cargo build --release --bin GrokDesktop
-      - name: Upload artifact
+      # Unversioned CI smoke artifact (90 days). For downloadable versioned
+      # clients use the Release workflow (tags / manual) → GitHub Releases.
+      - name: Upload smoke artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GrokDesktop-windows-x64
+          name: GrokDesktop-windows-x64-ci
           path: target/release/GrokDesktop.exe
           if-no-files-found: error
+          retention-days: 14
 
   build-macos:
     name: Build (macOS)
@@ -62,12 +65,13 @@ jobs:
         run: cargo test --test core_logic
       - name: build
         run: cargo build --release --bin GrokDesktop
-      - name: Upload artifact
+      - name: Upload smoke artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GrokDesktop-macos
+          name: GrokDesktop-macos-ci
           path: target/release/GrokDesktop
           if-no-files-found: error
+          retention-days: 14
 
   site-check:
     name: Landing page check
