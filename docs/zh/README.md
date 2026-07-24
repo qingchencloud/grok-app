@@ -14,6 +14,7 @@
 | 配置项 | [docs/CONFIGURATION.md](../CONFIGURATION.md) |
 | 勿上传内容 | [docs/REPO_HYGIENE.md](../REPO_HYGIENE.md) |
 | 界面语言 | 设置 → 外观 → Language（English / 中文） |
+| **产品官网** | https://qingchencloud.github.io/grok-app-web/ |
 
 ## 下载客户端（重要）
 
