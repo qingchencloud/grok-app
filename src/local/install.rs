@@ -163,7 +163,7 @@ fn run_install(tx: &mpsc::Sender<InstallProgress>) -> Result<String> {
         let path = resolve_grok_binary("").ok();
         if let Some(p) = path {
             let ver = query_version(&p).unwrap_or_else(|| "unknown".into());
-            info!("CLI installed at {} ({ver})", p.display());
+            tracing::info!("CLI installed at {} ({ver})", p.display());
             Ok(format!(
                 "{}\n{}\n{ver}",
                 crate::i18n::t().install_ok,
