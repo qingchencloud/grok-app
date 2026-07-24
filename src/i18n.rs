@@ -578,6 +578,36 @@ pub struct Strings {
     pub about_capabilities_body: &'static str,
     pub link_xai_cli: &'static str,
     pub link_grok_build: &'static str,
+    pub untitled_paren: &'static str,
+    pub new_session_title: &'static str,
+    pub no_project: &'static str,
+    pub unbound_cwd: &'static str,
+    pub click_to_preview: &'static str,
+    pub will_bind: &'static str,
+    pub file_too_large: &'static str,
+    pub decode_image_failed: &'static str,
+    pub view_image_prompt: &'static str,
+    pub grok_not_found: &'static str,
+    pub title_empty: &'static str,
+    pub not_in_app_index: &'static str,
+    pub invalid_session_id: &'static str,
+    pub install_ok: &'static str,
+    pub install_done_refresh: &'static str,
+    pub clipboard_busy: &'static str,
+    pub image_read_failed: &'static str,
+    pub pasted_image: &'static str,
+    pub drop_image_failed: &'static str,
+    pub approved_tool: &'static str,
+    pub attach_save_failed: &'static str,
+    pub attach_persist_failed: &'static str,
+    pub archive_failed: &'static str,
+    pub delete_failed: &'static str,
+    pub rename_failed: &'static str,
+    pub restore_failed: &'static str,
+    pub import_failed: &'static str,
+    pub prompt_failed: &'static str,
+    pub thought_truncated: &'static str,
+    pub tools_summary: &'static str,
 }
 
 macro_rules! s {
@@ -943,6 +973,39 @@ s! {
 • 新建对话可绑定工作目录",
     link_xai_cli: "xAI CLI install", "xAI CLI 安装",
     link_grok_build: "Grok Build", "Grok Build",
+    untitled_paren: "(untitled)", "(无标题)",
+    new_session_title: "New chat", "新会话",
+    no_project: "(no project)", "(无项目)",
+    unbound_cwd: "(no working directory)", "(未绑定工作目录)",
+    click_to_preview: "Click to preview", "点击预览",
+    will_bind: "Will bind", "将绑定",
+    file_too_large: "File too large (>12MB)", "文件过大（>12MB）",
+    decode_image_failed: "Failed to decode image", "解码图片失败",
+    view_image_prompt: "Please look at the following image(s) and answer.",
+        "请直接查看以下图片并回答。",
+    grok_not_found: "grok executable not found. Install the Grok CLI: https://x.ai/cli — or set the path in Settings.",
+        "找不到 grok 可执行文件。请先安装 Grok CLI：https://x.ai/cli ，或在设置里填写 grok 路径。",
+    title_empty: "Title cannot be empty", "标题不能为空",
+    not_in_app_index: "Session is not in the App index", "会话不在 App 索引中",
+    invalid_session_id: "Invalid session id", "无效会话 id",
+    install_ok: "Install succeeded", "安装成功",
+    install_done_refresh: "Install finished. If grok is missing, reopen the terminal or click Refresh.",
+        "安装脚本已完成。若找不到 grok，请重新打开终端或点「刷新状态」。",
+    clipboard_busy: "Clipboard busy", "剪贴板忙碌",
+    image_read_failed: "Failed to read image", "图片读取失败",
+    pasted_image: "Pasted image", "已粘贴图片",
+    drop_image_failed: "Drop image failed", "拖放图片失败",
+    approved_tool: "Approved tool", "已批准工具",
+    attach_save_failed: "Failed to save attachment", "保存附件失败",
+    attach_persist_failed: "Failed to write attachment", "附件落盘失败",
+    archive_failed: "Archive failed", "归档失败",
+    delete_failed: "Delete failed", "删除失败",
+    rename_failed: "Rename failed", "重命名失败",
+    restore_failed: "Restore failed", "恢复失败",
+    import_failed: "Import failed", "导入失败",
+    prompt_failed: "Prompt failed", "prompt 失败",
+    thought_truncated: "…(thinking truncated)", "…(思考过长已截断)",
+    tools_summary: "tool calls", "个工具调用",
 }
 
 /// "Current: medium (medium)"
@@ -965,5 +1028,73 @@ pub fn version_line(v: &str) -> String {
     match current_locale() {
         Locale::Zh => format!("版本 {v}"),
         Locale::En => format!("Version {v}"),
+    }
+}
+
+pub fn will_bind_folder(name: &str) -> String {
+    match current_locale() {
+        Locale::Zh => format!("✓  将绑定「{name}」"),
+        Locale::En => format!("✓  Will use “{name}”"),
+    }
+}
+
+pub fn click_preview(label: &str) -> String {
+    format!("{} — {}", label, t().click_to_preview)
+}
+
+pub fn err_fmt(prefix_key: fn() -> &'static str, e: impl std::fmt::Display) -> String {
+    format!("{}: {e:#}", prefix_key())
+}
+
+// Convenience prefixes for format errors
+pub fn archive_failed_e(e: impl std::fmt::Display) -> String {
+    format!("{}: {e:#}", t().archive_failed)
+}
+pub fn delete_failed_e(e: impl std::fmt::Display) -> String {
+    format!("{}: {e:#}", t().delete_failed)
+}
+pub fn rename_failed_e(e: impl std::fmt::Display) -> String {
+    format!("{}: {e:#}", t().rename_failed)
+}
+pub fn restore_failed_e(e: impl std::fmt::Display) -> String {
+    format!("{}: {e:#}", t().restore_failed)
+}
+pub fn import_failed_e(e: impl std::fmt::Display) -> String {
+    format!("{}: {e:#}", t().import_failed)
+}
+pub fn attach_save_failed_e(e: impl std::fmt::Display) -> String {
+    format!("{}: {e:#}", t().attach_save_failed)
+}
+pub fn prompt_failed_e(e: impl std::fmt::Display) -> String {
+    format!("{}: {e:#}", t().prompt_failed)
+}
+pub fn drop_image_failed_e(e: impl std::fmt::Display) -> String {
+    format!("{}: {e}", t().drop_image_failed)
+}
+pub fn clipboard_busy_e(e: impl std::fmt::Display) -> String {
+    format!("{}… ({e})", t().clipboard_busy)
+}
+pub fn image_read_failed_e(fmt: &str) -> String {
+    format!("{} ({fmt})", t().image_read_failed)
+}
+pub fn pasted_image_s(label: &str) -> String {
+    format!("{} {label}", t().pasted_image)
+}
+pub fn approved_tool_s(opt: &str) -> String {
+    format!("{} · {opt}", t().approved_tool)
+}
+pub fn max_attachments_s(n: usize) -> String {
+    max_attachments(n)
+}
+pub fn attached_progress_s(cur: usize, max: usize, n: usize) -> String {
+    attached_progress(cur, max, n)
+}
+pub fn image_n_path_s(n: usize, path: &str) -> String {
+    image_n_path(n, path)
+}
+pub fn tools_summary_line(n: usize, titles: &str) -> String {
+    match current_locale() {
+        Locale::Zh => format!("⚙ {n} 个工具调用: {titles}"),
+        Locale::En => format!("⚙ {n} tool calls: {titles}"),
     }
 }

@@ -165,10 +165,10 @@ fn run_install(tx: &mpsc::Sender<InstallProgress>) -> Result<String> {
         if let Some(p) = path {
             let ver = query_version(&p).unwrap_or_else(|| "unknown".into());
             info!("CLI installed at {} ({ver})", p.display());
-            Ok(format!("安装成功\n{}\n{ver}", p.display()))
+            Ok(format!("{}\n{}\n{ver}", crate::i18n::t().install_ok, p.display()))
         } else {
             Ok(
-                "安装脚本已完成。若找不到 grok，请重新打开终端或点「刷新状态」。"
+                crate::i18n::t().install_done_refresh
                     .into(),
             )
         }

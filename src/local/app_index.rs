@@ -162,7 +162,7 @@ impl AppSessionRecord {
         LocalSession {
             id: self.id.clone(),
             title: if self.title.trim().is_empty() {
-                "(无标题)".into()
+                crate::i18n::t().untitled_paren.into()
             } else {
                 self.title.clone()
             },
@@ -306,8 +306,8 @@ pub fn touch_session(
             let t = t.trim();
             if !t.is_empty()
                 && (r.title.is_empty()
-                    || r.title == "(无标题)"
-                    || r.title.starts_with("新会话"))
+                    || r.title == crate::i18n::t().untitled_paren
+                    || r.title.starts_with(crate::i18n::t().new_session_title))
             {
                 r.title = t.chars().take(48).collect();
             }
@@ -326,9 +326,9 @@ pub fn touch_session(
     } else {
         // First time we see this id from the agent — register as app session
         let path = find_cli_session_dir(id).map(|p| p.display().to_string());
-        let mut title = title_hint.unwrap_or("新会话").to_string();
+        let mut title = title_hint.unwrap_or(crate::i18n::t().new_session_title).to_string();
         if title.trim().is_empty() {
-            title = "新会话".into();
+            title = crate::i18n::t().new_session_title.into();
         }
         upsert_record(
             AppSessionRecord {
@@ -353,11 +353,11 @@ pub fn touch_session(
 pub fn rename_in_index(id: &str, new_title: &str) -> Result<()> {
     let title = new_title.trim();
     if title.is_empty() {
-        bail!("标题不能为空");
+        bail!("{}", crate::i18n::t().title_empty);
     }
     let mut file = load_file();
     let Some(r) = file.sessions.iter_mut().find(|r| r.id == id) else {
-        bail!("会话不在 App 索引中");
+        bail!("{}", crate::i18n::t().not_in_app_index);
     };
     r.title = title.to_string();
     r.updated_at = Some(Utc::now().to_rfc3339());
@@ -367,7 +367,7 @@ pub fn rename_in_index(id: &str, new_title: &str) -> Result<()> {
 pub fn archive_session(id: &str) -> Result<()> {
     let mut file = load_file();
     let Some(r) = file.sessions.iter_mut().find(|r| r.id == id) else {
-        bail!("会话不在 App 索引中");
+        bail!("{}", crate::i18n::t().not_in_app_index);
     };
     r.archived = true;
     r.archived_at = Some(Utc::now().to_rfc3339());
@@ -377,7 +377,7 @@ pub fn archive_session(id: &str) -> Result<()> {
 pub fn restore_session(id: &str) -> Result<()> {
     let mut file = load_file();
     let Some(r) = file.sessions.iter_mut().find(|r| r.id == id) else {
-        bail!("会话不在 App 索引中");
+        bail!("{}", crate::i18n::t().not_in_app_index);
     };
     r.archived = false;
     r.archived_at = None;
@@ -389,7 +389,7 @@ pub fn restore_session(id: &str) -> Result<()> {
 pub fn delete_from_app(id: &str, delete_disk: bool) -> Result<()> {
     let mut file = load_file();
     let Some(pos) = file.sessions.iter().position(|r| r.id == id) else {
-        bail!("会话不在 App 索引中");
+        bail!("{}", crate::i18n::t().not_in_app_index);
     };
     let rec = file.sessions.remove(pos);
     save_file(&file)?;
@@ -405,7 +405,7 @@ pub fn delete_from_app(id: &str, delete_disk: bool) -> Result<()> {
 /// Explicit import of a CLI session into the App index.
 pub fn import_cli_session(s: &LocalSession) -> Result<()> {
     if s.id.trim().is_empty() {
-        bail!("无效会话 id");
+        bail!("{}", crate::i18n::t().invalid_session_id);
     }
     if is_registered(&s.id) {
         // Already present — unarchive if needed
@@ -447,7 +447,7 @@ pub fn sync_record_from_disk(id: &str) -> Result<()> {
     }
     let text = std::fs::read_to_string(&summary)?;
     if let Some(local) = parse_summary_json(&text, &summary, &dir) {
-        if !local.title.is_empty() && local.title != "(无标题)" {
+        if !local.title.is_empty() && local.title != crate::i18n::t().untitled_paren {
             r.title = local.title;
         }
         if !local.cwd.is_empty() {

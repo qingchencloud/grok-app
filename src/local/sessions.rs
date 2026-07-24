@@ -132,7 +132,7 @@ pub fn parse_summary_json(
         .generated_title
         .or(s.session_summary)
         .filter(|t| !t.trim().is_empty())
-        .unwrap_or_else(|| "(无标题)".into());
+        .unwrap_or_else(|| crate::i18n::t().untitled_paren.into());
     let cwd = s.info.cwd.unwrap_or_default();
     let model = s.current_model_id.unwrap_or_default();
     let created_at = parse_ts(s.created_at.as_deref());
@@ -187,7 +187,7 @@ pub fn normalize_project_key(cwd: &str) -> String {
 pub fn project_display_name(cwd: &str) -> String {
     let key = normalize_project_key(cwd);
     if key.is_empty() {
-        return "(无项目)".into();
+        return crate::i18n::t().no_project.into();
     }
     let p = Path::new(&key);
     if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
@@ -202,7 +202,7 @@ pub fn project_display_name(cwd: &str) -> String {
 pub fn rename_session(summary_path: &Path, new_title: &str) -> Result<()> {
     let title = new_title.trim();
     if title.is_empty() {
-        bail!("标题不能为空");
+        bail!("{}", crate::i18n::t().title_empty);
     }
     let text = std::fs::read_to_string(summary_path)
         .with_context(|| format!("read {}", summary_path.display()))?;
@@ -258,12 +258,12 @@ pub fn group_sessions_by_project(
         .map(|(key, mut sessions)| {
             sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
             let path_display = if key.is_empty() {
-                "(未绑定工作目录)".into()
+                crate::i18n::t().unbound_cwd.into()
             } else {
                 key.clone()
             };
             let name = if key.is_empty() {
-                "(无项目)".into()
+                crate::i18n::t().no_project.into()
             } else {
                 project_display_name(&key)
             };
@@ -344,7 +344,7 @@ pub fn parse_updates_jsonl(text: &str, max_items: usize) -> Vec<TimelineItem> {
                 // Cap very long thoughts in history so the UI stays usable
                 let text = if t.chars().count() > 4000 {
                     let head: String = t.chars().take(4000).collect();
-                    format!("{head}\n…(思考过长已截断)")
+                    format!("{}\n{}", head, crate::i18n::t().thought_truncated)
                 } else {
                     t
                 };
@@ -529,7 +529,7 @@ fn compact_history_tools(items: Vec<TimelineItem>) -> Vec<TimelineItem> {
         } else {
             out.push(TimelineItem::Status {
                 id: Uuid::new_v4().to_string(),
-                text: format!("⚙ {} 个工具调用: {}", titles.len(), titles.join(" · ")),
+                text: crate::i18n::tools_summary_line(titles.len(), &titles.join(" · ")),
             });
         }
         titles.clear();

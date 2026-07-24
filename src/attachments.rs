@@ -274,7 +274,7 @@ fn extract_img_src(html: &str) -> Option<String> {
 pub fn from_path(path: &Path) -> Result<PendingImage> {
     let bytes = std::fs::read(path).with_context(|| format!("read {}", path.display()))?;
     if bytes.len() > MAX_BYTES {
-        bail!("文件过大（>12MB）");
+        bail!("{}", crate::i18n::t().file_too_large);
     }
     let name = path
         .file_name()
@@ -286,9 +286,9 @@ pub fn from_path(path: &Path) -> Result<PendingImage> {
 
 pub fn from_bytes(bytes: &[u8], name: &str) -> Result<PendingImage> {
     if bytes.len() > MAX_BYTES {
-        bail!("文件过大（>12MB）");
+        bail!("{}", crate::i18n::t().file_too_large);
     }
-    let dyn_img = image::load_from_memory(bytes).context("解码图片失败")?;
+    let dyn_img = image::load_from_memory(bytes).with_context(|| crate::i18n::t().decode_image_failed.to_string())?;
     let rgba_img = dyn_img.to_rgba8();
     let (w, h) = rgba_img.dimensions();
     from_rgba(rgba_img.into_raw(), w, h, name)
@@ -353,7 +353,7 @@ pub fn build_prompt_blocks(text: &str, images: &[PendingImage]) -> Vec<serde_jso
     } else if !images.is_empty() {
         blocks.push(serde_json::json!({
             "type": "text",
-            "text": "请直接查看以下图片并回答。"
+            "text": crate::i18n::t().view_image_prompt
         }));
     }
     for (i, img) in images.iter().enumerate() {

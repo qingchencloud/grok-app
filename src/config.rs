@@ -195,8 +195,7 @@ pub fn resolve_grok_binary(configured: &str) -> Result<PathBuf> {
     }
 
     anyhow::bail!(
-        "找不到 grok 可执行文件。请先安装 Grok CLI：https://x.ai/cli ，\
-         或在设置里填写 grok 路径。"
+        crate::i18n::t().grok_not_found
     )
 }
 

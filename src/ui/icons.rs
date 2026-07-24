@@ -138,7 +138,7 @@ pub fn user_avatar_ex(ui: &mut Ui, size: f32, letter: &str, image_path: Option<&
             },
         ),
     );
-    let glyph = if letter.is_empty() { "我" } else { letter };
+    let glyph = if letter.is_empty() { crate::i18n::t().me } else { letter };
     let ch: String = glyph.chars().take(1).collect();
     painter.text(
         rect.center(),

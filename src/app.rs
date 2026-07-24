@@ -927,7 +927,7 @@ impl GrokApp {
         for (i, img) in images.iter_mut().enumerate() {
             let n = (i + 1) as u32;
             if let Err(e) = img.ensure_on_disk(n) {
-                self.error_banner = Some(format!("附件落盘失败（图{n}）: {e:#}"));
+                self.error_banner = Some(format!("{} (#{n}): {e:#}", crate::i18n::t().attach_persist_failed));
                 // put remaining back
                 self.pending_images = images;
                 return;
@@ -950,7 +950,10 @@ impl GrokApp {
                     .as_ref()
                     .map(|p| p.display().to_string())
                     .unwrap_or_default();
-                t.push_str(&format!("图{n}: {path}\n"));
+                t.push_str(&format!(
+                    "{}\n",
+                    crate::i18n::image_n_path(n as usize, &path)
+                ));
             }
             t
         };
@@ -1006,7 +1009,7 @@ impl GrokApp {
                 }
                 Err(e) => {
                     let _ = event_tx.send(AgentEvent::Error {
-                        message: format!("prompt 失败: {e:#}"),
+                        message: crate::i18n::prompt_failed_e(e),
                         turn_gen: Some(turn_gen),
                     });
                 }
@@ -1017,10 +1020,7 @@ impl GrokApp {
 
     fn add_pending_image(&mut self, mut img: PendingImage) {
         if self.pending_images.len() >= attachments::MAX_ATTACHMENTS {
-            self.error_banner = Some(format!(
-                "最多附加 {} 个附件",
-                attachments::MAX_ATTACHMENTS
-            ));
+            self.error_banner = Some(crate::i18n::max_attachments(attachments::MAX_ATTACHMENTS));
             return;
         }
         // Avoid huge duplicates by name+size
@@ -1033,7 +1033,7 @@ impl GrokApp {
         }
         let n = (self.pending_images.len() + 1) as u32;
         if let Err(e) = img.ensure_on_disk(n) {
-            self.error_banner = Some(format!("保存附件失败: {e:#}"));
+            self.error_banner = Some(crate::i18n::attach_save_failed_e(e));
             return;
         }
         let path_hint = img
@@ -1042,13 +1042,14 @@ impl GrokApp {
             .map(|p| p.display().to_string())
             .unwrap_or_default();
         self.pending_images.push(img);
-        self.status = format!(
-            "已附加 {}/{} · 图{n}",
+        self.status = crate::i18n::attached_progress(
             self.pending_images.len(),
-            attachments::MAX_ATTACHMENTS
+            attachments::MAX_ATTACHMENTS,
+            n as usize,
         );
         if !path_hint.is_empty() {
-            self.logs.push(format!("附件 图{n} → {path_hint}"));
+            self.logs
+                .push(format!("attachment #{n} → {path_hint}"));
         }
     }
 
@@ -1130,7 +1131,7 @@ impl GrokApp {
             }
             Err(e) => {
                 // OpenClipboard busy — keep probing
-                self.status = format!("剪贴板忙碌… ({e})");
+                self.status = crate::i18n::clipboard_busy_e(e);
             }
         }
         for t in &texts {
@@ -1168,11 +1169,8 @@ impl GrokApp {
 
         let probe = attachments::probe_clipboard();
         if probe.has_image {
-            self.status = format!("图片读取失败 ({})", probe.formats);
-            self.error_banner = Some(format!(
-                "剪贴板图片读取失败（{}）。请再试 Ctrl+V，或用「＋ 附件」选文件 / 拖放图片。",
-                probe.formats
-            ));
+            self.status = crate::i18n::image_read_failed_e(&probe.formats);
+            self.error_banner = Some(crate::i18n::paste_image_failed(&probe.formats));
         } else {
             // Quiet: most often user hit Ctrl+V with empty / non-image clipboard
             self.status = crate::i18n::t().status_ready.into();
@@ -1185,7 +1183,7 @@ impl GrokApp {
         self.add_pending_image(img);
         self.error_banner = None;
         if self.pending_images.len() > n_before {
-            self.status = format!("已粘贴图片 {label}");
+            self.status = crate::i18n::pasted_image_s(&label);
         }
         self.consume_paste_events(ctx);
         self.scrub_input_after_image_paste();
@@ -1262,7 +1260,7 @@ impl GrokApp {
             };
             match result {
                 Ok(img) => self.add_pending_image(img),
-                Err(e) => self.error_banner = Some(format!("拖放图片失败: {e}")),
+                Err(e) => self.error_banner = Some(crate::i18n::drop_image_failed_e(e)),
             }
         }
     }
@@ -1368,7 +1366,7 @@ impl GrokApp {
             });
         }
         self.touch_activity();
-        self.status = format!("已批准工具 · {option_id}");
+        self.status = crate::i18n::approved_tool_s(&option_id);
     }
 
     /// Prefer allow-* options for auto-approve.
@@ -1863,7 +1861,7 @@ impl GrokApp {
                             continue;
                         }
                     }
-                    self.force_unlock_ui(&format!("Agent 退出 {code:?}"));
+                    self.force_unlock_ui(&format!("Agent exit {code:?}"));
                     self.agent_pid = None;
                     self.store.disconnect();
                     *self.client.lock() = None;
@@ -2339,7 +2337,7 @@ impl GrokApp {
                     self.status = crate::i18n::archived_status(&s.title);
                 }
                 Err(e) => {
-                    self.error_banner = Some(format!("归档失败: {e:#}"));
+                    self.error_banner = Some(crate::i18n::archive_failed_e(e));
                 }
             }
         }
@@ -2354,7 +2352,7 @@ impl GrokApp {
                     self.status = crate::i18n::t().status_deleted.into();
                 }
                 Err(e) => {
-                    self.error_banner = Some(format!("删除失败: {e:#}"));
+                    self.error_banner = Some(crate::i18n::delete_failed_e(e));
                 }
             }
         }
@@ -3249,7 +3247,7 @@ impl GrokApp {
                     self.status = crate::i18n::t().status_renamed.into();
                 }
                 Err(e) => {
-                    self.error_banner = Some(format!("重命名失败: {e:#}"));
+                    self.error_banner = Some(crate::i18n::rename_failed_e(e));
                 }
             }
         }
@@ -3367,7 +3365,7 @@ impl GrokApp {
                     self.archived_sessions = list_archived_sessions();
                     self.local_sessions = list_active_sessions();
                 }
-                Err(e) => self.error_banner = Some(format!("恢复失败: {e:#}")),
+                Err(e) => self.error_banner = Some(crate::i18n::restore_failed_e(e)),
             }
         }
         if let Some(id) = delete_id {
@@ -3380,7 +3378,7 @@ impl GrokApp {
                         self.store.set_session_id(None);
                     }
                 }
-                Err(e) => self.error_banner = Some(format!("删除失败: {e:#}")),
+                Err(e) => self.error_banner = Some(crate::i18n::delete_failed_e(e)),
             }
         }
         if !open || close_btn {
@@ -3504,7 +3502,7 @@ impl GrokApp {
 
                                 for s in &g.sessions {
                                     let title = if s.title.trim().is_empty()
-                                        || s.title == "(无标题)"
+                                        || s.title == crate::i18n::t().untitled_paren
                                     {
                                         crate::i18n::t().untitled_session
                                     } else {
@@ -3565,7 +3563,7 @@ impl GrokApp {
                     self.import_candidates = list_cli_import_candidates(120);
                     self.local_sessions = list_active_sessions();
                 }
-                Err(e) => self.error_banner = Some(format!("导入失败: {e:#}")),
+                Err(e) => self.error_banner = Some(crate::i18n::import_failed_e(e)),
             }
         }
         if !open || close_btn {
@@ -3768,7 +3766,7 @@ impl GrokApp {
                                 .and_then(|n| n.to_str())
                                 .unwrap_or(cwd.trim());
                             ui.label(
-                                RichText::new(format!("✓  将绑定「{name}」"))
+                                RichText::new(crate::i18n::will_bind_folder(&name))
                                     .size(11.5)
                                     .color(theme::SUCCESS()),
                             );

@@ -523,7 +523,7 @@ fn render_chat_image(
         if resp.clicked() {
             on_image(img.clone());
         }
-        resp.on_hover_text(format!("{} — 点击预览", img.label));
+        resp.on_hover_text(crate::i18n::click_preview(&img.label));
     } else if ui
         .add(
             egui::Button::new(RichText::new(&img.label).size(12.0).color(theme::TEXT_2()))
