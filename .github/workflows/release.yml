@@ -1,14 +1,9 @@
-# Build versioned client packages and attach them to a GitHub Release.
+# Versioned Windows Setup.exe (+ portable .exe) and macOS binary on GitHub Releases.
 #
-# Trigger A — push a tag:
-#   git tag v0.1.0
-#   git push origin v0.1.0
+#   git tag v0.1.1 && git push origin v0.1.1
+#   or Actions → Release → Run workflow → version 0.1.1
 #
-# Trigger B — Actions UI (manual):
-#   Actions → Release → Run workflow → enter version 0.1.0
-#
-# Downloads: repo → Releases → assets (zip). Keep the repo private: only
-# collaborators can download until you go public.
+# Primary download: GrokDesktop-Setup-<ver>-windows-x64.exe  (double-click to install)
 
 name: Release
 
@@ -19,9 +14,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Semver WITHOUT leading v (e.g. 0.1.0). Creates tag v{version} on main."
+        description: "Semver WITHOUT leading v (e.g. 0.1.1)"
         required: true
-        default: "0.1.0"
+        default: "0.1.1"
       draft:
         description: "Create as draft release"
         type: boolean
@@ -32,7 +27,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  PRODUCT: GrokDesktop
 
 jobs:
   version:
@@ -49,75 +43,92 @@ jobs:
             V="${{ inputs.version }}"
             V="${V#v}"
           else
-            REF="${GITHUB_REF_NAME}"
-            V="${REF#v}"
+            V="${GITHUB_REF_NAME#v}"
           fi
           if ! [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
-            echo "Invalid version: $V"
-            exit 1
+            echo "Invalid version: $V"; exit 1
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "tag=v$V" >> "$GITHUB_OUTPUT"
-          echo "Resolved version=$V tag=v$V"
 
   build-windows:
-    name: Windows x64
+    name: Windows Setup.exe
     needs: version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+
       - name: Sync Cargo.toml version
         shell: bash
         run: |
           V="${{ needs.version.outputs.version }}"
           sed -i "s/^version = \".*\"/version = \"$V\"/" Cargo.toml
-          grep '^version' Cargo.toml
+
       - name: Test
         run: cargo test --test core_logic
+
       - name: Release build
         run: cargo build --release --bin GrokDesktop
-      - name: Package zip
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+        shell: cmd
+
+      - name: Build Setup.exe + portable .exe
         shell: pwsh
         run: |
           $V = "${{ needs.version.outputs.version }}"
-          $Name = "GrokDesktop-$V-windows-x64"
-          $Stage = "dist/$Name"
-          New-Item -ItemType Directory -Force -Path $Stage | Out-Null
-          Copy-Item target/release/GrokDesktop.exe $Stage/
-          Copy-Item packaging/Install.ps1, packaging/Uninstall.ps1, packaging/README.txt, packaging/LICENSE.txt $Stage/ -ErrorAction SilentlyContinue
-          Copy-Item LICENSE $Stage/LICENSE -ErrorAction SilentlyContinue
-          Set-Content -Path "$Stage/VERSION.txt" -Value $V -NoNewline
-          @"
-          @echo off
-          cd /d "%~dp0"
-          start "" "%~dp0GrokDesktop.exe"
-          "@ | Set-Content -Path "$Stage/Launch.bat" -Encoding ASCII
-          @"
-          @echo off
-          chcp 65001 >nul
-          cd /d "%~dp0"
-          powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install.ps1"
-          if errorlevel 1 pause
-          "@ | Set-Content -Path "$Stage/Install.bat" -Encoding ASCII
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          if (Test-Path "dist/$Name.zip") { Remove-Item "dist/$Name.zip" -Force }
-          Compress-Archive -Path $Stage -DestinationPath "dist/$Name.zip" -Force
-          Get-FileHash "dist/$Name.zip" -Algorithm SHA256 | ForEach-Object {
-            "$($_.Hash.ToLowerInvariant())  $Name.zip" | Out-File -FilePath "dist/$Name.sha256" -Encoding ascii
+          $Stage = "packaging/stage"
+          $Dist = "dist"
+          New-Item -ItemType Directory -Force -Path $Stage, $Dist | Out-Null
+          Copy-Item target/release/GrokDesktop.exe "$Stage/GrokDesktop.exe" -Force
+          Copy-Item packaging/LICENSE.txt, packaging/README.txt, packaging/Uninstall.ps1 $Stage/ -ErrorAction SilentlyContinue
+          if (Test-Path LICENSE) { Copy-Item LICENSE "$Stage/LICENSE.txt" -Force }
+          Set-Content "$Stage/VERSION.txt" -Value $V -NoNewline -Encoding ascii
+
+          # Portable single-file (download & run, no install)
+          $Portable = "dist/GrokDesktop-$V-windows-x64.exe"
+          Copy-Item target/release/GrokDesktop.exe $Portable -Force
+
+          $iscc = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe not found after choco install" }
+
+          & $iscc "/DMyAppVersion=$V" packaging\setup.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+
+          $Setup = "dist/GrokDesktop-Setup-$V-windows-x64.exe"
+          if (-not (Test-Path $Setup)) {
+            $found = Get-ChildItem dist -Filter "GrokDesktop-Setup-*.exe" | Select-Object -First 1
+            if (-not $found) { throw "Setup.exe not produced" }
+            $Setup = $found.FullName
           }
-          Get-ChildItem dist
+
+          Get-FileHash $Setup -Algorithm SHA256 | ForEach-Object {
+            "$($_.Hash.ToLowerInvariant())  $(Split-Path $Setup -Leaf)" |
+              Out-File "dist/$(Split-Path $Setup -Leaf).sha256" -Encoding ascii
+          }
+          Get-FileHash $Portable -Algorithm SHA256 | ForEach-Object {
+            "$($_.Hash.ToLowerInvariant())  $(Split-Path $Portable -Leaf)" |
+              Out-File "dist/$(Split-Path $Portable -Leaf).sha256" -Encoding ascii
+          }
+          Get-ChildItem dist | Format-Table Name, Length
+
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-x64
+          name: windows
           path: |
-            dist/*.zip
+            dist/GrokDesktop-Setup-*.exe
+            dist/GrokDesktop-*-windows-x64.exe
             dist/*.sha256
           if-no-files-found: error
 
   build-macos:
-    name: macOS
+    name: macOS binary
     needs: version
     runs-on: macos-latest
     steps:
@@ -128,36 +139,26 @@ jobs:
         run: |
           V="${{ needs.version.outputs.version }}"
           sed -i '' "s/^version = \".*\"/version = \"$V\"/" Cargo.toml
-          grep '^version' Cargo.toml
       - name: Test
         run: cargo test --test core_logic
       - name: Release build
         run: cargo build --release --bin GrokDesktop
-      - name: Package zip
+      - name: Package single binary
         run: |
           V="${{ needs.version.outputs.version }}"
           ARCH=$(uname -m)
-          case "$ARCH" in
-            arm64) A=aarch64 ;;
-            x86_64) A=x86_64 ;;
-            *) A=$ARCH ;;
-          esac
-          Name="GrokDesktop-$V-macos-$A"
-          mkdir -p "dist/$Name"
-          cp target/release/GrokDesktop "dist/$Name/"
-          cp LICENSE "dist/$Name/" 2>/dev/null || true
-          cp packaging/LICENSE.txt "dist/$Name/" 2>/dev/null || true
-          echo "$V" > "dist/$Name/VERSION.txt"
-          chmod +x "dist/$Name/GrokDesktop"
-          (cd dist && zip -r "$Name.zip" "$Name")
-          (cd dist && shasum -a 256 "$Name.zip" | tee "$Name.sha256")
+          case "$ARCH" in arm64) A=aarch64 ;; x86_64) A=x86_64 ;; *) A=$ARCH ;; esac
+          mkdir -p dist
+          # Single downloadable binary (no zip)
+          cp target/release/GrokDesktop "dist/GrokDesktop-$V-macos-$A"
+          chmod +x "dist/GrokDesktop-$V-macos-$A"
+          (cd dist && shasum -a 256 "GrokDesktop-$V-macos-$A" | tee "GrokDesktop-$V-macos-$A.sha256")
           ls -la dist
       - uses: actions/upload-artifact@v4
         with:
           name: macos
           path: |
-            dist/*.zip
-            dist/*.sha256
+            dist/GrokDesktop-*
           if-no-files-found: error
 
   publish:
@@ -168,28 +169,30 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: release-assets
           merge-multiple: true
-      - name: List assets
-        run: find release-assets -type f | sort
-      - name: Ensure tag exists (manual runs)
+      - name: Flatten assets
+        run: |
+          mkdir -p out
+          find release-assets -type f -exec cp -v {} out/ \;
+          ls -la out
+      - name: Ensure tag (manual)
         if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ needs.version.outputs.tag }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists"
+            echo "Tag exists: $TAG"
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git tag -a "$TAG" -m "Release $TAG"
             git push origin "$TAG"
           fi
-      - name: Create / update release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.tag }}
@@ -199,30 +202,26 @@ jobs:
           body: |
             ## Grok Desktop ${{ needs.version.outputs.tag }}
 
-            Unofficial native GUI over the official **Grok Build CLI** (`grok agent stdio`).
+            Unofficial desktop client for the official Grok Build CLI.
 
-            ### Downloads
-            | Platform | Asset |
-            |----------|--------|
-            | Windows x64 | `GrokDesktop-*-windows-x64.zip` |
-            | macOS | `GrokDesktop-*-macos-*.zip` |
+            ### Windows — recommended
 
-            ### Windows
-            1. Download the **windows-x64** zip  
-            2. Unzip → run `Launch.bat` (portable) **or** `Install.bat`  
-            3. Install & login CLI if needed: `irm https://x.ai/cli/install.ps1 | iex` then `grok login`
+            | File | What to do |
+            |------|------------|
+            | **`GrokDesktop-Setup-*-windows-x64.exe`** | **Download → double-click → Install** (no zip) |
+            | `GrokDesktop-*-windows-x64.exe` | Portable: download and run (no install) |
+
+            After install: Start Menu → **Grok Desktop**.  
+            Still need CLI once: `irm https://x.ai/cli/install.ps1 | iex` then `grok login`.
 
             ### macOS
-            1. Download the **macos** zip  
-            2. Unzip → run `./GrokDesktop` (may need: System Settings → Privacy → allow)  
-            3. Install CLI: `curl -fsSL https://x.ai/cli/install.sh | bash` then `grok login`
 
-            ### Notes
-            - This app does **not** embed your API key; auth stays with the CLI (`~/.grok`).  
-            - UI languages: English (default) · 中文 — Settings → Language.  
-            - SHA256 files are attached next to each zip.
-          files: |
-            release-assets/**/*.zip
-            release-assets/**/*.sha256
+            | File | What to do |
+            |------|------------|
+            | `GrokDesktop-*-macos-*` | Download, `chmod +x`, run (may need Privacy → Open Anyway) |
+
+            ### Checksums
+            Matching `*.sha256` files are attached.
+          files: out/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

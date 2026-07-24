@@ -25,12 +25,13 @@
 ## Download (end users)
 
 1. Open **[Releases](https://github.com/qingchencloud/grok-app/releases)**  
-2. Pick a version (e.g. `v0.1.0`)  
-3. Download:
-   - **Windows:** `GrokDesktop-<ver>-windows-x64.zip`  
-   - **macOS:** `GrokDesktop-<ver>-macos-*.zip`  
-4. Unzip → run `Launch.bat` (Windows) or `./GrokDesktop` (macOS)  
-5. Install & login CLI if needed:
+2. Pick a version  
+3. **Windows (recommended):** download  
+   **`GrokDesktop-Setup-<ver>-windows-x64.exe`**  
+   → double-click → Install (no zip, no unpack)  
+4. Or **portable:** `GrokDesktop-<ver>-windows-x64.exe` (single file, run directly)  
+5. **macOS:** `GrokDesktop-<ver>-macos-*` (single binary)  
+6. Install & login CLI if needed:
 
 ```powershell
 # Windows
@@ -44,7 +45,7 @@ curl -fsSL https://x.ai/cli/install.sh | bash
 grok login
 ```
 
-> Private repo: only people with access can download until the repo is public.
+> Private repo: only collaborators can download until public.
 
 ## Features
 

@@ -1,87 +1,63 @@
-# Releases — versioned client downloads
+# Releases — one-click Windows installer
 
-## What you get
+## What users download
 
-Each release attaches **zip** assets:
+| File | Use |
+|------|-----|
+| **`GrokDesktop-Setup-<ver>-windows-x64.exe`** | **Primary** — download → double-click → Install (no zip) |
+| `GrokDesktop-<ver>-windows-x64.exe` | Portable single file (run without installing) |
+| `GrokDesktop-<ver>-macos-*` | macOS single binary (no zip) |
+| `*.sha256` | Checksums |
 
-| Asset | Contents |
-|-------|----------|
-| `GrokDesktop-<ver>-windows-x64.zip` | `GrokDesktop.exe`, `Launch.bat`, `Install.bat`, install scripts, `VERSION.txt` |
-| `GrokDesktop-<ver>-macos-<arch>.zip` | `GrokDesktop` binary, `VERSION.txt`, license |
-| `*.sha256` | SHA-256 checksums |
+Open: **GitHub → [Releases](https://github.com/qingchencloud/grok-app/releases)**
 
-Open: **GitHub → Releases** (private repo: collaborators only until public).
+## Install (Windows end user)
 
-## Cut a release (recommended)
-
-### Option A — tag from your machine
-
-```bash
-# 1) bump Cargo.toml version to match (optional but tidy)
-# version = "0.1.1"
-
-git add -A
-git commit -m "chore: release v0.1.1"
-git tag v0.1.1
-git push origin main
-git push origin v0.1.1
-```
-
-Tag pattern: **`vMAJOR.MINOR.PATCH`** (e.g. `v0.1.0`).  
-CI workflow **Release** builds Windows + macOS and uploads the zips.
-
-### Option B — GitHub Actions UI
-
-1. **Actions → Release → Run workflow**  
-2. Enter version: `0.1.1` (no `v`)  
-3. Optionally **draft**  
-4. Wait for green → open **Releases** → download zip  
-
-## Install from a release
-
-### Windows
-
-1. Download `GrokDesktop-*-windows-x64.zip`  
-2. Unzip  
-3. Portable: double-click **Launch.bat**  
-   Or install for current user: **Install.bat**  
-4. Install CLI + login if needed:
+1. Download **`GrokDesktop-Setup-…-windows-x64.exe`**
+2. Double-click → Next → Install  
+   - Installs to `%LOCALAPPDATA%\Programs\Grok Desktop\` (no admin)
+   - Start Menu shortcut created
+3. One-time CLI:
 
 ```powershell
 irm https://x.ai/cli/install.ps1 | iex
 grok login
 ```
 
-### macOS
+## Cut a release (maintainer)
 
-1. Download `GrokDesktop-*-macos-*.zip`  
-2. Unzip and run `./GrokDesktop`  
-3. If Gatekeeper blocks: System Settings → Privacy & Security → Open Anyway  
-4. CLI:
+### Tag
 
 ```bash
-curl -fsSL https://x.ai/cli/install.sh | bash
-grok login
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
-## Local package (without CI)
+### Or Actions UI
+
+**Actions → Release → Run workflow** → version `0.1.1`
+
+Wait until green → open **Releases** → Setup.exe is attached.
+
+## Local Setup.exe (Windows machine with Inno Setup)
 
 ```powershell
-cargo build --release
-.\packaging\build-release.ps1
-# → dist\GrokDesktop-<ver>-windows-x64-portable.zip
+# Install Inno Setup 6 once: https://jrsoftware.org/isinfo.php
+.\packaging\build-setup.ps1 -Version 0.1.1
+# → dist\GrokDesktop-Setup-0.1.1-windows-x64.exe
+# → dist\GrokDesktop-0.1.1-windows-x64.exe  (portable)
 ```
 
 ## CI overview
 
-| Workflow | When | Output |
-|----------|------|--------|
-| **CI** | push / PR to `main` | Test + build artifacts (90-day Actions artifacts) |
-| **Release** | tag `v*` or manual | **Permanent** GitHub Release downloads |
-| **Pages** | `preview/**` changes | Landing page (enable Pages in settings) |
+| Workflow | Trigger | Output |
+|----------|---------|--------|
+| **CI** | push / PR | Tests (smoke artifacts, short retention) |
+| **Release** | tag `v*` / manual | **Setup.exe + portable .exe** on Releases |
+| **Pages** | `preview/**` | Landing page |
 
-## Versioning policy
+## Versioning
 
-- GitHub tag: `v0.1.0`  
-- `Cargo.toml` `version` should match (CI overwrites for the release build)  
+- Tag: `v0.1.1`  
+- CI sets `Cargo.toml` version for that build  
 - Changelog: [CHANGELOG.md](../CHANGELOG.md)

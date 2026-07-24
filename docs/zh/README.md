@@ -17,15 +17,14 @@
 
 ## 下载客户端（重要）
 
-1. 打开仓库 **[Releases](https://github.com/qingchencloud/grok-app/releases)**  
-2. 选择版本（如 `v0.1.0`）  
-3. 下载：
-   - Windows：`GrokDesktop-<版本>-windows-x64.zip`
-   - macOS：`GrokDesktop-<版本>-macos-*.zip`
-4. 解压后：
-   - Windows：双击 `Launch.bat`（便携）或 `Install.bat`（安装到当前用户）
-   - macOS：运行 `./GrokDesktop`（可能需在「隐私与安全性」中允许）
-5. 本机仍需 Grok CLI 并登录：
+1. 打开 **[Releases](https://github.com/qingchencloud/grok-app/releases)**  
+2. 选择版本  
+3. **Windows 推荐：** 下载  
+   **`GrokDesktop-Setup-<版本>-windows-x64.exe`**  
+   → **双击即可安装**（不需要压缩包、不用解压）  
+4. **便携版（可选）：** `GrokDesktop-<版本>-windows-x64.exe` 单文件直接运行  
+5. **macOS：** `GrokDesktop-<版本>-macos-*` 单文件  
+6. 本机仍需 Grok CLI 并登录：
 
 ```powershell
 # Windows
@@ -39,7 +38,7 @@ curl -fsSL https://x.ai/cli/install.sh | bash
 grok login
 ```
 
-私有仓库时，仅有权限的协作者可下载；公开后所有人可下。
+私有仓库时，仅协作者可下载；公开后所有人可下。
 
 ## 如何打指定版本包（维护者）
 
