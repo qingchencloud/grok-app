@@ -20,7 +20,7 @@
 | **How to cut a release** | [docs/RELEASE.md](docs/RELEASE.md) |
 | **Config reference** | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) |
 | **What not to upload** | [docs/REPO_HYGIENE.md](docs/REPO_HYGIENE.md) |
-| **Landing page** | https://qingchencloud.github.io/grok-app-web/ · source [preview/](preview/) |
+| **Landing page** | https://qingchencloud.github.io/grok-app/ · source [preview/](preview/) |
 
 ## Download (end users)
 
