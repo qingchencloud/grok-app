@@ -7,9 +7,9 @@
   <meta name="theme-color" content="#07080c" id="meta-theme-color" />
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
   <meta name="googlebot" content="index, follow" />
-  <meta name="author" content="Grok Desktop" />
-  <meta name="keywords" content="Grok, Grok App, grok-app, Grok Desktop, GrokDesktop, xAI, xai, Grok Build CLI, grok-build, ACP, Agent Client Protocol, AI agent, coding agent, desktop client, Rust, egui, eframe, Windows, QingChen Cloud, qingchencloud, stdio, unofficial" id="meta-keywords" />
-  <meta name="description" id="meta-description" content="Grok App / Grok Desktop — unofficial native desktop client for the official Grok Build CLI. Sessions, tools, permissions and config over ACP. English & 中文." />
+  <meta name="author" content="QingChen Cloud" />
+  <meta name="keywords" content="Grok App, Grok Desktop, grok-app, QingChen Cloud, qingchencloud, unofficial Grok client, Grok Build CLI, ACP, Rust, egui, Windows, desktop AI agent" id="meta-keywords" />
+  <meta name="description" id="meta-description" content="Grok Desktop by QingChen Cloud — unofficial native client for Grok Build CLI (ACP). Sessions, tools, permissions. English & 中文. Open source on GitHub." />
   <meta name="application-name" content="Grok Desktop" />
   <meta name="apple-mobile-web-app-title" content="Grok Desktop" />
   <meta name="format-detection" content="telephone=no" />
@@ -21,16 +21,16 @@
   <meta property="og:type" content="website" />
   <meta property="og:locale" id="og-locale" content="en_US" />
   <meta property="og:locale:alternate" id="og-locale-alt" content="zh_CN" />
-  <meta property="og:title" id="og-title" content="Grok App / Grok Desktop — Unofficial native client for Grok Build CLI" />
-  <meta property="og:description" id="og-description" content="Unofficial desktop shell over Grok Build CLI via ACP. Sessions, models, images, approvals. English & 中文." />
+  <meta property="og:title" id="og-title" content="Grok Desktop — Unofficial client by QingChen Cloud" />
+  <meta property="og:description" id="og-description" content="Open-source desktop shell by QingChen Cloud over Grok Build CLI (ACP). Download Setup.exe from Releases." />
   <meta property="og:url" id="og-url" content="" />
   <meta property="og:image" id="og-image" content="assets/logo.png" />
   <meta property="og:image:alt" content="Grok logo" />
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" id="tw-title" content="Grok Desktop — Native client for Grok Build CLI" />
-  <meta name="twitter:description" id="tw-description" content="Unofficial desktop shell over Grok Build CLI via ACP." />
+  <meta name="twitter:description" id="tw-description" content="Unofficial Grok Desktop by QingChen Cloud — open source on GitHub." />
   <meta name="twitter:image" id="tw-image" content="assets/logo.png" />
-  <title id="doc-title">Grok App / Grok Desktop — Unofficial native client for Grok Build CLI</title>
+  <title id="doc-title">Grok Desktop · QingChen Cloud</title>
   <link rel="icon" href="assets/icon.ico" sizes="any" />
   <link rel="icon" type="image/png" href="assets/icon.png" sizes="512x512" />
   <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32" />
@@ -48,7 +48,7 @@
         "@type": "WebSite",
         "@id": "#website",
         "name": "Grok Desktop",
-        "url": "",
+        "url": "https://qingchencloud.github.io/grok-app/",
         "inLanguage": ["en", "zh-CN"],
         "description": "Native desktop client for the official Grok Build CLI."
       },
@@ -57,8 +57,8 @@
         "@id": "#app",
         "name": "Grok Desktop",
         "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Windows",
-        "softwareVersion": "0.1.0",
+        "operatingSystem": "Windows, macOS",
+        "softwareVersion": "0.1.1",
         "license": "https://opensource.org/licenses/MIT",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "description": "Unofficial native GUI over Grok Build CLI via ACP stdio.",
@@ -74,8 +74,9 @@
       {
         "@type": "Organization",
         "@id": "#org",
-        "name": "Grok Desktop",
-        "url": ""
+        "name": "QingChen Cloud",
+        "url": "https://github.com/qingchencloud",
+        "sameAs": ["https://github.com/qingchencloud/grok-app"]
       }
     ]
   }
@@ -1243,6 +1244,20 @@
     }
     .reveal.in { opacity: 1; transform: none; }
 
+    .logo-sub {
+      display: block;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      color: var(--text-3);
+      margin-top: 1px;
+      line-height: 1.2;
+    }
+    .logo { align-items: flex-start; }
+    .logo > span:not(.logo-mark):not(.logo-sub) {
+      font-weight: 700;
+      line-height: 1.15;
+    }
     .lang-btn {
       height: 40px;
       min-width: 48px;
@@ -1295,12 +1310,16 @@
         <span class="logo-mark" aria-hidden="true" title="Grok">
           <img class="brand-logo-img" src="assets/logo.png" width="26" height="24" alt="" />
         </span>
-        Grok Desktop
+        <span class="logo-text">
+          <span>Grok Desktop</span>
+          <span class="logo-sub">QingChen Cloud</span>
+        </span>
       </a>
       <nav class="nav-links" aria-label="Main" data-i18n-aria="nav.main">
         <a href="#features" data-nav data-i18n="nav.features">功能</a>
         <a href="#protocol" data-nav data-i18n="nav.protocol">架构</a>
         <a href="#surface" data-nav data-i18n="nav.surface">界面</a>
+        <a href="#download" data-nav data-i18n="nav.download">下载</a>
         <a href="#start" data-nav data-i18n="nav.start">开始</a>
       </nav>
       <div class="nav-actions">
@@ -1317,7 +1336,7 @@
       <nav class="mobile-nav" aria-label="Mobile" data-i18n-aria="nav.mobile">
         <a href="#features" data-nav data-i18n="nav.features">功能</a>
         <a href="#protocol" data-nav data-i18n="nav.protocol">架构</a>
-        <a href="#surface" data-nav data-i18n="nav.surface">界面</a>
+        <a href="#download" data-nav data-i18n="nav.download">下载</a>
         <a href="#start" data-nav data-i18n="nav.start">开始</a>
       </nav>
     </div>
@@ -1329,14 +1348,14 @@
         <div>
           <div class="pill">
             <span class="pill-live" aria-hidden="true"></span>
-            <span data-i18n="hero.pill">官方 Grok Build CLI · 原生桌面壳</span>
+            <span data-i18n="hero.pill">晴辰云开源 · 非官方 · 基于 Grok Build CLI</span>
           </div>
           <h1 data-i18n-html="hero.title">
             把 Agent<br />
             放进 <span class="shine">原生窗口</span>
           </h1>
           <p class="hero-lead" data-i18n-html="hero.lead">
-            Grok Desktop 是官方 CLI 的图形前端：ACP 连接本机 <code>grok agent</code>，会话、模型、图片、权限与配置映射走同一条主路径——不另接一套聊天 API。
+            由 <strong>晴辰云 QingChen Cloud</strong> 开源的非官方桌面客户端：经 ACP 连接本机官方 <code>grok agent</code>。仓库 <code>qingchencloud/grok-app</code>。
           </p>
           <div class="hero-actions">
             <a class="btn btn-primary btn-lg" href="#download" id="hero-download">
@@ -1490,7 +1509,7 @@
         <div class="section-head reveal">
           <div class="kicker" data-i18n="arch.kicker">Architecture</div>
           <h2 data-i18n="arch.title">三层分工，不抢运行时</h2>
-          <p data-i18n="arch.desc">桌面只做壳与交互；认证、模型、工具、MCP、skills 仍在官方 CLI 生态里。</p>
+          <p data-i18n="arch.desc">桌面只做壳与交互；认证、模型、工具、MCP、skills 仍由官方 Grok CLI 提供（本项目不托管密钥）。</p>
         </div>
         <div class="protocol reveal">
           <div class="proto-step">
@@ -1555,7 +1574,7 @@
             </div>
             <div class="mini-card">
               <h4>config.toml</h4>
-              <p data-i18n="surface.cfg2">官方 CLI 权限/压缩等，设置页映射写入。</p>
+              <p data-i18n="surface.cfg2">CLI 权限 / 压缩等可在设置页映射写入 ~/.grok/config.toml。</p>
             </div>
             <div class="mini-card">
               <h4>~/.grok/sessions</h4>
@@ -1613,7 +1632,7 @@
           <article class="deploy-card reveal">
             <div class="deploy-num">01</div>
             <h3 data-i18n="start.s1h">安装并登录 CLI</h3>
-            <p data-i18n="start.s1p">应用内可一键安装，或使用官方脚本：</p>
+            <p data-i18n="start.s1p">应用内可一键安装 CLI，或使用 xAI 官方脚本：</p>
             <div class="code-wrap">
               <pre class="code-block" data-copy>irm https://x.ai/cli/install.ps1 | iex
 grok login</pre>
@@ -1630,17 +1649,17 @@ grok login</pre>
 cargo build --release</pre>
               <button class="copy-btn" type="button" data-copy-btn data-i18n="copy">复制</button>
             </div>
-            <a class="btn btn-ghost" href="https://github.com/qingchencloud/grok-app#readme">README</a>
+            <a class="btn btn-ghost" href="https://github.com/qingchencloud/grok-app#readme" target="_blank" rel="noopener noreferrer">README</a>
           </article>
           <article class="deploy-card reveal">
             <div class="deploy-num">03</div>
             <h3 data-i18n="start.s3h">打包分发</h3>
-            <p data-i18n="start.s3p">生成便携包与 setup zip，目标机需已登录 CLI。</p>
+            <p data-i18n="start.s3p">本地 packaging/build-setup.ps1 生成 Setup.exe，或从 GitHub Releases 下载。</p>
             <div class="code-wrap">
               <pre class="code-block" data-copy>.\packaging\build-setup.ps1</pre>
               <button class="copy-btn" type="button" data-copy-btn data-i18n="copy">复制</button>
             </div>
-            <a class="btn btn-primary" href="https://github.com/qingchencloud/grok-app#readme" data-i18n="start.packDoc">打包说明</a>
+            <a class="btn btn-primary" href="https://github.com/qingchencloud/grok-app/blob/main/docs/RELEASE.md" data-i18n="start.packDoc">发版文档</a>
           </article>
         </div>
       </div>
@@ -1648,8 +1667,8 @@ cargo build --release</pre>
 
     <div class="final wrap">
       <div class="final-card reveal">
-        <h2 data-i18n-html="final.title">从官方运行时出发<br />用桌面走完主路径</h2>
-        <p data-i18n="final.desc">安装 Grok Build CLI → 登录 → 启动 Grok Desktop。同一套 agent 能力，更好的日常操作面。</p>
+        <h2 data-i18n-html="final.title">开源桌面壳<br />跑在官方 CLI 之上</h2>
+        <p data-i18n="final.desc">下载 Setup.exe → 安装官方 CLI 并 login → 启动。源码与发版：qingchencloud/grok-app。</p>
         <div class="final-actions">
           <a class="btn btn-primary btn-lg" href="#download" id="final-download" data-i18n="final.cta1">开始安装</a>
           <a class="btn btn-ghost btn-lg" href="#features" data-i18n="final.cta2">再看功能</a>
@@ -1663,13 +1682,16 @@ cargo build --release</pre>
     <div class="wrap footer-inner">
       <div class="footer-brand">
         <img class="brand-logo-img" src="assets/logo.png" width="18" height="17" alt="" />
-        <span><strong>Grok Desktop</strong> · v0.1.1 · MIT</span>
+        <span><strong>Grok Desktop</strong> · <span id="footer-ver">v0.1.1</span> · MIT<br />
+          <span style="font-size:11.5px;color:var(--text-3)" data-i18n="footer.by">by QingChen Cloud · unofficial · open source</span>
+        </span>
       </div>
       <div class="footer-links">
-        <a href="#features" data-i18n="nav.features">功能</a>
-        <a href="#protocol" data-i18n="nav.protocol">架构</a>
-        <a href="#start" data-i18n="nav.start">开始</a>
-        <a href="#top" data-i18n="nav.top">顶部</a>
+        <a href="#download" data-i18n="nav.download">下载</a>
+        <a href="https://github.com/qingchencloud/grok-app" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://github.com/qingchencloud/grok-app/releases" target="_blank" rel="noopener noreferrer" data-i18n="footer.releases">Releases</a>
+        <a href="https://github.com/qingchencloud/grok-app#readme" target="_blank" rel="noopener noreferrer" data-i18n="footer.docs">Docs</a>
+        <a href="https://github.com/qingchencloud" target="_blank" rel="noopener noreferrer">QingChen Cloud</a>
       </div>
     </div>
   </footer>
@@ -1734,11 +1756,11 @@ cargo build --release</pre>
       var LANG_KEY = "grok-desktop-lang";
       var I18N = {
         zh: {
-          "doc.title": "Grok Desktop — Grok Build CLI 原生桌面客户端",
-          "doc.desc": "Grok Desktop 是官方 Grok Build CLI 的原生桌面客户端。通过 ACP 连接本机会话、工具、权限与配置，不另接聊天 API。",
-          "doc.keywords": "Grok Desktop, Grok, xAI, Grok Build CLI, ACP, AI 助手, 桌面客户端, Rust, egui, Windows",
-          "og.title": "Grok Desktop — Grok Build CLI 原生桌面客户端",
-          "og.desc": "官方 Grok Build CLI 图形前端：会话、模型、图片、权限与配置映射。",
+          "doc.title": "Grok Desktop · 晴辰云 QingChen Cloud",
+          "doc.desc": "Grok Desktop 由晴辰云（QingChen Cloud）开源维护：非官方原生桌面客户端，通过 ACP 连接官方 Grok Build CLI（会话、工具、权限）。仓库：github.com/qingchencloud/grok-app",
+          "doc.keywords": "Grok Desktop, Grok App, 晴辰云, QingChen Cloud, grok-app, 非官方, Grok Build CLI, ACP, Rust, egui, Windows",
+          "og.title": "Grok Desktop · 晴辰云开源",
+          "og.desc": "晴辰云开源 · 非官方桌面壳：会话、模型、图片、权限。GitHub Releases 下载 Setup.exe。",
           "a11y.skip": "跳到正文",
           "nav.main": "主导航",
           "nav.mobile": "移动导航",
@@ -1749,10 +1771,10 @@ cargo build --release</pre>
           "nav.download": "下载",
           "nav.top": "顶部",
           "theme.toggle": "切换日间/夜间模式",
-          "hero.pill": "官方 Grok Build CLI · 原生桌面壳",
+          "hero.pill": "晴辰云开源 · 非官方 · 基于 Grok Build CLI",
           "hero.title": "把 Agent<br />放进 <span class=\"shine\">原生窗口</span>",
-          "hero.lead": "Grok Desktop 是官方 CLI 的图形前端：ACP 连接本机 <code>grok agent</code>，会话、模型、图片、权限与配置映射走同一条主路径——不另接一套聊天 API。",
-          "hero.ctaPrimary": "获取客户端",
+          "hero.lead": "由 <strong>晴辰云 QingChen Cloud</strong> 开源的非官方桌面客户端：经 ACP 连接本机官方 <code>grok agent</code>，会话 / 模型 / 图片 / 权限同一主路径。仓库 <code>qingchencloud/grok-app</code>。",
+          "hero.ctaPrimary": "下载安装包",
           "hero.ctaSecondary": "浏览能力",
           "hero.chipSessions": "与 TUI 共享会话",
           "mock.newChat": "+ 新对话",
@@ -1791,7 +1813,7 @@ cargo build --release</pre>
           "feat.cfg.p": "设置页写入 <code>config.toml</code>（不覆盖无关项）；内置 CLI 安装入口；<code>packaging/</code> 产出便携包与 setup zip。",
           "arch.kicker": "架构",
           "arch.title": "三层分工，不抢运行时",
-          "arch.desc": "桌面只做壳与交互；认证、模型、工具、MCP、skills 仍在官方 CLI 生态里。",
+          "arch.desc": "桌面只做壳与交互；认证、模型、工具、MCP、skills 仍由官方 Grok CLI 提供（本项目不托管密钥）。",
           "arch.shell.p": "原生窗口、会话列表、聊天气泡、设置与权限弹窗。偏好写入 <code>%APPDATA%\\GrokApp</code>。",
           "arch.bridge.p": "双向流：update、load、cancel、image blocks。桌面不直连 xAI HTTP 聊天接口。",
           "arch.runtime.p": "本机 <code>grok</code> 负责登录态、模型路由、工具与 skills。与 TUI 同一套能力。",
@@ -1804,27 +1826,27 @@ cargo build --release</pre>
           "surface.c2": "顶栏：模型、session、就绪状态",
           "surface.c3": "输入区：附件、发送、停止",
           "surface.cfg1": "桌面路径、cwd、模型、窗口偏好。",
-          "surface.cfg2": "官方 CLI 权限/压缩等，设置页映射写入。",
+          "surface.cfg2": "CLI 权限 / 压缩等可在设置页映射写入 ~/.grok/config.toml。",
           "surface.cfg3": "与 TUI 共享会话摘要与恢复数据。",
           "start.kicker": "开始使用",
           "start.title": "三步上线",
           "start.desc": "先有 CLI 与登录态，再跑桌面壳。开发用热重载，分发用 packaging。",
           "start.s1h": "安装并登录 CLI",
-          "start.s1p": "应用内可一键安装，或使用官方脚本：",
+          "start.s1p": "应用内可一键安装 CLI，或使用 xAI 官方脚本：",
           "start.s2h": "开发运行",
           "start.s2p": "源码目录：",
-          "start.s3h": "打包分发",
-          "start.s3p": "生成便携包与 setup zip，目标机需已登录 CLI。",
+          "start.s3h": "从源码打包",
+          "start.s3p": "本地：packaging/build-setup.ps1 生成 Setup.exe。或从 GitHub Releases 直接下载。",
           "start.cliDoc": "CLI 文档",
-          "start.packDoc": "打包说明",
+          "start.packDoc": "发版文档",
           "copy": "复制",
           "copied": "已复制",
-          "final.title": "从官方运行时出发<br />用桌面走完主路径",
-          "final.desc": "安装 Grok Build CLI → 登录 → 启动 Grok Desktop。同一套 agent 能力，更好的日常操作面。",
-          "final.cta1": "开始安装",
+          "final.title": "开源桌面壳<br />跑在官方 CLI 之上",
+          "final.desc": "下载 Setup.exe → 安装官方 CLI 并 login → 启动 Grok Desktop。源码与发版均在 qingchencloud/grok-app。",
+          "final.cta1": "去下载",
           "final.cta2": "再看功能",
           "final.theme": "切换日间 / 夜间",
-          "ld.desc": "官方 Grok Build CLI 的原生桌面客户端，经 ACP 连接本机 agent。",
+          "ld.desc": "晴辰云开源的非官方 Grok 桌面客户端，经 ACP 连接本机官方 agent。",
           "ld.featureList": [
             "经 grok agent stdio 连接",
             "流式对话与工具/计划",
@@ -1835,11 +1857,11 @@ cargo build --release</pre>
           ]
         },
         en: {
-          "doc.title": "Grok Desktop — Native client for Grok Build CLI",
+          "doc.title": "Grok Desktop · QingChen Cloud",
           "doc.desc": "Grok Desktop is the official native desktop client for Grok Build CLI. Connect local sessions, tools, permissions and config over ACP — no separate chat API.",
           "doc.keywords": "Grok Desktop, Grok, xAI, Grok Build CLI, ACP, AI agent, desktop client, Rust, egui, Windows",
-          "og.title": "Grok Desktop — Native client for Grok Build CLI",
-          "og.desc": "Official GUI shell for Grok Build CLI: sessions, models, images, approvals and config mapping.",
+          "og.title": "Grok Desktop · QingChen Cloud (open source)",
+          "og.desc": "Unofficial open-source desktop shell by QingChen Cloud. Download Setup.exe from GitHub Releases.",
           "a11y.skip": "Skip to content",
           "nav.main": "Primary",
           "nav.mobile": "Mobile",
@@ -1850,10 +1872,10 @@ cargo build --release</pre>
           "nav.download": "Download",
           "nav.top": "Top",
           "theme.toggle": "Toggle light / dark mode",
-          "hero.pill": "Official Grok Build CLI · native desktop shell",
+          "hero.pill": "QingChen Cloud · unofficial · powered by Grok Build CLI",
           "hero.title": "Put the agent<br />in a <span class=\"shine\">native window</span>",
           "hero.lead": "Grok Desktop is the official GUI front-end for the CLI: ACP talks to local <code>grok agent</code> for sessions, models, images, approvals and config — not a separate chat API.",
-          "hero.ctaPrimary": "Get the client",
+          "hero.ctaPrimary": "Download installer",
           "hero.ctaSecondary": "Explore features",
           "hero.chipSessions": "Sessions shared with TUI",
           "mock.newChat": "+ New chat",
@@ -1921,11 +1943,11 @@ cargo build --release</pre>
           "copy": "Copy",
           "copied": "Copied",
           "final.title": "Start from the official runtime<br />finish the main path on desktop",
-          "final.desc": "Install Grok Build CLI → log in → launch Grok Desktop. Same agent power, better daily surface.",
-          "final.cta1": "Start install",
+          "final.desc": "Download Setup.exe → install official CLI + login → launch Grok Desktop. Source: qingchencloud/grok-app.",
+          "final.cta1": "Go download",
           "final.cta2": "See features",
           "final.theme": "Light / dark",
-          "ld.desc": "Official native desktop client for Grok Build CLI, connected via ACP to the local agent.",
+          "ld.desc": "Unofficial open-source Grok desktop client by QingChen Cloud, via ACP to the local official agent.",
           "ld.featureList": [
             "Agent connection via grok agent stdio",
             "Streaming chat with tools and plans",
@@ -1987,10 +2009,8 @@ cargo build --release</pre>
                 ? tag + " · " + mac.name + " · " + size(mac.size)
                 : tag || "";
             }
-            var foot = document.querySelector(".footer-brand span");
-            if (foot && tag) {
-              foot.innerHTML = "<strong>Grok Desktop</strong> · " + tag + " · MIT";
-            }
+            var fv = document.getElementById("footer-ver");
+            if (fv && tag) fv.textContent = tag;
           })
           .catch(function () {
             var winMeta = document.getElementById("dl-win-meta");
