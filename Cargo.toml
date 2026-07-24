@@ -1,6 +1,6 @@
 [package]
 name = "grok_app"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Grok App / Grok Desktop — unofficial native GUI over the official Grok Build CLI (ACP)"
 license = "MIT"

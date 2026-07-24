@@ -1488,7 +1488,21 @@ impl GrokApp {
             }
         };
         self.logs.push(format!("启动登录: {} login", bin.display()));
-        let _ = std::process::Command::new(bin).arg("login").spawn();
+        // Interactive login needs a real console window (not hidden).
+        // CREATE_NEW_CONSOLE so it doesn't steal/flash the GUI's console.
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+            let _ = std::process::Command::new(&bin)
+                .arg("login")
+                .creation_flags(CREATE_NEW_CONSOLE)
+                .spawn();
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = std::process::Command::new(&bin).arg("login").spawn();
+        }
         self.status = crate::i18n::t().status_login_opened.into();
     }
 

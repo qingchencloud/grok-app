@@ -350,22 +350,9 @@ fn parse_semver(s: &str) -> Option<SemVer> {
     })
 }
 
-/// Open a URL in the default browser (best-effort).
+/// Open a URL in the default browser (best-effort, no console flash).
 pub fn open_url(url: &str) {
-    #[cfg(windows)]
-    {
-        let _ = std::process::Command::new("cmd")
-            .args(["/C", "start", "", url])
-            .spawn();
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let _ = std::process::Command::new("open").arg(url).spawn();
-    }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
-    }
+    crate::spawn_util::open_url(url);
 }
 
 #[cfg(test)]

@@ -4,7 +4,9 @@
 use crate::config::{grok_home, resolve_grok_binary};
 use anyhow::{bail, Context, Result};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
+#[cfg(not(windows))]
+use std::process::Command;
 use std::sync::mpsc;
 
 pub const INSTALL_URL: &str = "https://x.ai/cli/install.ps1";
@@ -52,12 +54,10 @@ fn probe_status_ex(configured_path: &str, with_version: bool) -> CliInstallStatu
 }
 
 fn query_version(bin: &std::path::Path) -> Option<String> {
-    // Guard against hangs / weird stdio when launched from Explorer
-    let mut child = Command::new(bin)
+    // Guard against hangs / weird stdio when launched from Explorer.
+    // CREATE_NO_WINDOW: never flash a console when Settings probes `grok --version`.
+    let mut child = crate::spawn_util::command_piped(bin)
         .arg("--version")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .stdin(Stdio::null())
         .spawn()
         .ok()?;
 
@@ -120,15 +120,19 @@ fn run_install(tx: &mpsc::Sender<InstallProgress>) -> Result<String> {
         let _ = tx.send(InstallProgress::Log(format!(
             "执行: irm {INSTALL_URL} | iex"
         )));
-        // Use powershell.exe explicitly (not pwsh) for max compatibility with install.ps1
-        let mut child = Command::new("powershell.exe")
+        // Use powershell.exe explicitly (not pwsh) for max compatibility with install.ps1.
+        // Hidden window — progress streams into the Settings log panel.
+        let mut child = crate::spawn_util::command("powershell.exe")
             .args([
                 "-NoProfile",
+                "-WindowStyle",
+                "Hidden",
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
                 &format!("irm {INSTALL_URL} | iex"),
             ])
+            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()

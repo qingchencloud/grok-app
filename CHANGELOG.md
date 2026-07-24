@@ -2,6 +2,15 @@
 
 All notable changes to **Grok Desktop** (`qingchencloud/grok-app`) are documented here.
 
+## [0.1.2] — 2026-07-25
+
+### Fixed
+- **Windows Setup**: real per-user install to `%LOCALAPPDATA%\Programs\Grok Desktop\`, always creates Desktop + Start Menu shortcuts and an Add/Remove Programs entry
+- **Console flash**: opening Settings / probing CLI / opening links no longer flashes a black terminal window (`CREATE_NO_WINDOW` + `ShellExecuteW`)
+
+### Notes
+- Download **`GrokDesktop-Setup-*-windows-x64.exe`** for install (not the portable single-file `.exe`)
+
 ## [0.1.1] — 2026-07-25
 
 ### Added

@@ -876,10 +876,12 @@ async fn wait_child(mut child: Child) -> Option<i32> {
 fn kill_pid(pid: u32) {
     #[cfg(windows)]
     {
-        let _ = std::process::Command::new("taskkill")
+        // Hidden — avoid console flash on disconnect / reconnect.
+        let _ = crate::spawn_util::command("taskkill")
             .args(["/PID", &pid.to_string(), "/T", "/F"])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
+            .stdin(Stdio::null())
             .status();
     }
     #[cfg(unix)]

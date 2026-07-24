@@ -94,6 +94,6 @@ if (-not (Test-Path $setup)) {
 }
 Write-Host ""
 Write-Host "DONE" -ForegroundColor Green
-Write-Host "  Installer : $setup   ← 双击安装"
-Write-Host "  Portable  : dist\$PortableName   ← 单文件直接运行"
+Write-Host "  Installer : $setup   (double-click to install; desktop + Start Menu)"
+Write-Host "  Portable  : dist\$PortableName   (single file, no install)"
 Write-Host ""
