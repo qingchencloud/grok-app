@@ -8,13 +8,33 @@
 
 | | |
 |--|--|
-| 仓库 | [qingchencloud/grok-app](https://github.com/qingchencloud/grok-app)（当前私有） |
+| 仓库 | [qingchencloud/grok-app](https://github.com/qingchencloud/grok-app)（**已公开**） |
 | **下载安装包** | **[Releases](https://github.com/qingchencloud/grok-app/releases)** |
 | 发版说明 | [docs/RELEASE.md](../RELEASE.md) |
 | 配置项 | [docs/CONFIGURATION.md](../CONFIGURATION.md) |
 | 勿上传内容 | [docs/REPO_HYGIENE.md](../REPO_HYGIENE.md) |
 | 界面语言 | 设置 → 外观 → Language（English / 中文） |
 | **产品官网** | https://qingchencloud.github.io/grok-app/ （本仓库 `preview/`） |
+
+## 界面截图
+
+<p align="center">
+  <img src="../screenshots/home-zh.png" alt="Grok Desktop 中文界面" width="900" />
+</p>
+
+<p align="center">
+  <em>中文 · 日间模式 · 空会话与快捷入口</em>
+</p>
+
+<p align="center">
+  <img src="../screenshots/home-en.png" alt="Grok Desktop English UI" width="900" />
+</p>
+
+<p align="center">
+  <em>English · light mode · empty chat</em>
+</p>
+
+截图目录：[`docs/screenshots/`](../screenshots/)
 
 ## 下载客户端（重要）
 
@@ -38,8 +58,6 @@ grok login
 curl -fsSL https://x.ai/cli/install.sh | bash
 grok login
 ```
-
-私有仓库时，仅协作者可下载；公开后所有人可下。
 
 ## 如何打指定版本包（维护者）
 

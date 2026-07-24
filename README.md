@@ -13,14 +13,34 @@
 
 | | |
 |--|--|
-| **Repo** | [`qingchencloud/grok-app`](https://github.com/qingchencloud/grok-app) (private until ready) |
+| **Repo** | [`qingchencloud/grok-app`](https://github.com/qingchencloud/grok-app) (**public**) |
 | **UI language** | English (default) · 中文 — *Settings → Appearance → Language* |
 | **中文文档** | [docs/zh/README.md](docs/zh/README.md) |
-| **Download clients** | **[Releases](https://github.com/qingchencloud/grok-app/releases)** ← versioned zips |
+| **Download** | **[Releases](https://github.com/qingchencloud/grok-app/releases)** — `Setup.exe` installer |
 | **How to cut a release** | [docs/RELEASE.md](docs/RELEASE.md) |
 | **Config reference** | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) |
 | **What not to upload** | [docs/REPO_HYGIENE.md](docs/REPO_HYGIENE.md) |
 | **Landing page** | https://qingchencloud.github.io/grok-app/ · source [preview/](preview/) |
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/home-en.png" alt="Grok Desktop — English UI" width="900" />
+</p>
+
+<p align="center">
+  <em>English UI · light mode · empty chat with suggestion chips</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/home-zh.png" alt="Grok Desktop — Chinese UI" width="900" />
+</p>
+
+<p align="center">
+  <em>中文界面 · 日间模式 · 空会话与快捷入口</em>
+</p>
+
+More images live under [`docs/screenshots/`](docs/screenshots/).
 
 ## Download (end users)
 
@@ -44,8 +64,6 @@ grok login
 curl -fsSL https://x.ai/cli/install.sh | bash
 grok login
 ```
-
-> Private repo: only collaborators can download until public.
 
 ## Features
 

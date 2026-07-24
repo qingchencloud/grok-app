@@ -899,6 +899,45 @@
       letter-spacing: -0.02em;
     }
 
+
+    .shot-gallery {
+      margin-top: 36px;
+      display: grid;
+      gap: 20px;
+    }
+    @media (min-width: 900px) {
+      .shot-gallery { grid-template-columns: 1fr; }
+    }
+    .shot-frame {
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      background: var(--bg-elevated);
+      box-shadow: var(--shadow);
+    }
+    .shot-frame img {
+      display: block;
+      width: 100%;
+      height: auto;
+      vertical-align: middle;
+    }
+    .shot-cap {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--text-2);
+    }
+    .shot-cap strong { color: var(--text); font-weight: 600; }
+    html[data-lang="en"] .shot-zh { display: none !important; }
+    html[data-lang="zh"] .shot-en { display: none !important; }
+    /* default before JS: show EN */
+    html:not([data-lang]) .shot-zh { display: none !important; }
+
     section { padding: 80px 0; position: relative; z-index: 1; }
     @media (min-width: 900px) { section { padding: 100px 0; } }
     .section-head { max-width: 40rem; margin-bottom: 40px; }
@@ -1582,6 +1621,22 @@
             </div>
           </div>
         </div>
+        <div class="shot-gallery reveal">
+          <figure class="shot-frame shot-en">
+            <img src="assets/screenshots/home-en.png" width="1600" height="900" alt="Grok Desktop home — English UI" loading="lazy" decoding="async" />
+            <figcaption class="shot-cap">
+              <span><strong data-i18n="shot.enLabel">English UI</strong> · light mode · empty chat</span>
+              <span data-i18n="shot.caption">Sidebar · model bar · chips · composer</span>
+            </figcaption>
+          </figure>
+          <figure class="shot-frame shot-zh">
+            <img src="assets/screenshots/home-zh.png" width="1600" height="900" alt="Grok Desktop 首页 — 中文界面" loading="lazy" decoding="async" />
+            <figcaption class="shot-cap">
+              <span><strong data-i18n="shot.zhLabel">中文界面</strong> · 日间模式 · 空会话</span>
+              <span data-i18n="shot.caption">侧栏 · 模型条 · 建议卡片 · 输入区</span>
+            </figcaption>
+          </figure>
+        </div>
       </div>
     </section>
 
@@ -1770,6 +1825,9 @@ cargo build --release</pre>
           "nav.start": "开始",
           "nav.download": "下载",
           "nav.top": "顶部",
+          "shot.enLabel": "English UI",
+          "shot.zhLabel": "中文界面",
+          "shot.caption": "侧栏 · 模型条 · 建议卡片 · 输入区",
           "theme.toggle": "切换日间/夜间模式",
           "hero.pill": "晴辰云开源 · 非官方 · 基于 Grok Build CLI",
           "hero.title": "把 Agent<br />放进 <span class=\"shine\">原生窗口</span>",
@@ -1871,6 +1929,9 @@ cargo build --release</pre>
           "nav.start": "Get started",
           "nav.download": "Download",
           "nav.top": "Top",
+          "shot.enLabel": "English UI",
+          "shot.zhLabel": "Chinese UI",
+          "shot.caption": "Sidebar · model bar · chips · composer",
           "theme.toggle": "Toggle light / dark mode",
           "hero.pill": "QingChen Cloud · unofficial · powered by Grok Build CLI",
           "hero.title": "Put the agent<br />in a <span class=\"shine\">native window</span>",
