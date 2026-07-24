@@ -558,6 +558,26 @@ pub struct Strings {
     pub slash_goal_desc: &'static str,
     pub slash_help_title: &'static str,
     pub slash_help_desc: &'static str,
+    // Settings — CLI / advanced residual
+    pub current_effort: &'static str,
+    pub logged_in: &'static str,
+    pub not_logged_in: &'static str,
+    pub cli_config_toml: &'static str,
+    pub auto_compact_threshold: &'static str,
+    pub yolo_global: &'static str,
+    pub remember_tool_approvals: &'static str,
+    pub load_envrc: &'static str,
+    pub show_thinking_tui: &'static str,
+    pub codebase_indexing: &'static str,
+    pub cli_auto_update: &'static str,
+    pub default_model: &'static str,
+    pub permission_mode: &'static str,
+    pub wrote_config_toml: &'static str,
+    pub reloaded_from_disk: &'static str,
+    pub sessions_count: &'static str,
+    pub about_capabilities_body: &'static str,
+    pub link_xai_cli: &'static str,
+    pub link_grok_build: &'static str,
 }
 
 macro_rules! s {
@@ -895,4 +915,55 @@ s! {
     slash_goal_desc: "Insert /goal hint", "插入 /goal 提示",
     slash_help_title: "Help", "帮助",
     slash_help_desc: "List slash commands", "列出可用斜杠指令",
+    current_effort: "Current", "当前",
+    logged_in: "Logged in (~/.grok/auth.json)", "已登录 (~/.grok/auth.json)",
+    not_logged_in: "Not logged in — use Login below", "未登录 — 请使用下方登录",
+    cli_config_toml: "CLI config.toml", "CLI config.toml",
+    auto_compact_threshold: "Auto-compact threshold %", "自动压缩阈值 %",
+    yolo_global: "yolo (global always-approve)", "yolo（全局自动批准）",
+    remember_tool_approvals: "Remember tool approvals", "记住工具批准",
+    load_envrc: "Load .envrc", "加载 .envrc",
+    show_thinking_tui: "Show thinking blocks in TUI", "TUI 显示思考块",
+    codebase_indexing: "Codebase indexing", "代码库索引",
+    cli_auto_update: "CLI auto-update", "CLI 自动更新",
+    default_model: "Default model", "默认模型",
+    permission_mode: "permission_mode", "permission_mode",
+    wrote_config_toml: "Wrote ~/.grok/config.toml", "已写入 ~/.grok/config.toml",
+    reloaded_from_disk: "Reloaded from disk", "已从磁盘重新加载",
+    sessions_count: "sessions · ~/.grok/sessions", "条 · ~/.grok/sessions",
+    about_capabilities_body: "• Streaming chat / thinking / tools\n\
+• Images: Ctrl+V · attach · drag-drop\n\
+• Sessions grouped by project folder\n\
+• Light / dark · system title bar\n\
+• New chat binds a working directory",
+        "• 流式对话 / 思考过程 / 工具调用\n\
+• 图片：Ctrl+V · 附件 · 拖放\n\
+• 会话按项目目录分组\n\
+• 日间 / 夜间 · 系统标题栏跟随\n\
+• 新建对话可绑定工作目录",
+    link_xai_cli: "xAI CLI install", "xAI CLI 安装",
+    link_grok_build: "Grok Build", "Grok Build",
+}
+
+/// "Current: medium (medium)"
+pub fn current_effort_line(label: &str, id: &str) -> String {
+    match current_locale() {
+        Locale::Zh => format!("当前：{label}（{id}）"),
+        Locale::En => format!("Current: {label} ({id})"),
+    }
+}
+
+/// "12 sessions · ~/.grok/sessions"
+pub fn sessions_count_line(n: usize) -> String {
+    match current_locale() {
+        Locale::Zh => format!("{n} 条 · ~/.grok/sessions"),
+        Locale::En => format!("{n} sessions · ~/.grok/sessions"),
+    }
+}
+
+pub fn version_line(v: &str) -> String {
+    match current_locale() {
+        Locale::Zh => format!("版本 {v}"),
+        Locale::En => format!("Version {v}"),
+    }
 }

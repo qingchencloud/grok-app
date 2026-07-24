@@ -795,10 +795,9 @@ fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActio
             });
             ui.add_space(6.0);
             ui.label(
-                RichText::new(format!(
-                    "当前：{}（{}）",
+                RichText::new(crate::i18n::current_effort_line(
                     effort_label(&state.effort),
-                    normalize_effort(&state.effort)
+                    normalize_effort(&state.effort),
                 ))
                 .size(12.0)
                 .color(theme::TEXT_3()),
@@ -908,9 +907,9 @@ fn tab_cli(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActions
                 theme::WARNING()
             },
             if authenticated {
-                "● 已登录 (~/.grok/auth.json)"
+                format!("● {}", crate::i18n::t().logged_in)
             } else {
-                "○ 未登录 — 请使用下方登录"
+                format!("○ {}", crate::i18n::t().not_logged_in)
             },
         );
         if let Some(h) = &home_disp {
@@ -975,62 +974,68 @@ fn tab_advanced(
 ) {
     section(
         ui,
-        "额外 Agent 参数",
-        "空格分隔，插入到 `grok agent … stdio` 之前",
+        crate::i18n::t().extra_agent_args,
+        crate::i18n::t().extra_agent_args_hint,
         |ui| {
             ui.add(
                 TextEdit::singleline(&mut state.extra_args)
                     .desired_width(ui.available_width())
-                    .hint_text("例: --verbose"),
+                    .hint_text(crate::i18n::t().extra_args_example),
             );
         },
     );
 
     section(
         ui,
-        "CLI config.toml",
-        "与终端 TUI 共用；保存后写回 ~/.grok/config.toml",
+        crate::i18n::t().cli_config_toml,
+        crate::i18n::t().shared_with_tui,
         |ui| {
             if let Some(p) = state.cli_toml.path.clone() {
                 mono_path(ui, &p.display().to_string());
                 ui.add_space(8.0);
             }
             let c = &mut state.cli_toml;
+            let s = crate::i18n::t();
             if ui
                 .add(
                     egui::Slider::new(&mut c.auto_compact_threshold_percent, 50..=95)
-                        .text("自动压缩阈值 %"),
+                        .text(s.auto_compact_threshold),
                 )
                 .changed()
             {
                 state.dirty_toml = true;
             }
             ui.add_space(6.0);
-            if ui.checkbox(&mut c.yolo, "yolo（全局自动批准）").changed() {
+            if ui.checkbox(&mut c.yolo, s.yolo_global).changed() {
                 state.dirty_toml = true;
             }
             if ui
-                .checkbox(&mut c.remember_tool_approvals, "记住工具批准")
+                .checkbox(&mut c.remember_tool_approvals, s.remember_tool_approvals)
                 .changed()
             {
                 state.dirty_toml = true;
             }
-            if ui.checkbox(&mut c.load_envrc, "加载 .envrc").changed() {
+            if ui.checkbox(&mut c.load_envrc, s.load_envrc).changed() {
                 state.dirty_toml = true;
             }
-            if ui.checkbox(&mut c.show_thinking_blocks, "TUI 显示思考块").changed()
+            if ui
+                .checkbox(&mut c.show_thinking_blocks, s.show_thinking_tui)
+                .changed()
             {
                 state.dirty_toml = true;
             }
-            if ui.checkbox(&mut c.codebase_indexing, "代码库索引").changed() {
+            if ui
+                .checkbox(&mut c.codebase_indexing, s.codebase_indexing)
+                .changed()
+            {
                 state.dirty_toml = true;
             }
-            if ui.checkbox(&mut c.auto_update, "CLI 自动更新").changed() {
+            if ui.checkbox(&mut c.auto_update, s.cli_auto_update).changed() {
                 state.dirty_toml = true;
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                field_label(ui, "默认模型");
+                field_label(ui, s.default_model);
                 if ui
                     .add(
                         TextEdit::singleline(&mut c.default_model)
@@ -1044,7 +1049,7 @@ fn tab_advanced(
             });
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                field_label(ui, "permission_mode");
+                field_label(ui, s.permission_mode);
                 egui::ComboBox::from_id_salt("perm_mode_v2")
                     .selected_text(&c.permission_mode)
                     .width(180.0)
@@ -1075,15 +1080,15 @@ fn tab_advanced(
                         Ok(()) => {
                             state.dirty_toml = false;
                             state.cli_toml.loaded = true;
-                            state.message = Some("已写入 ~/.grok/config.toml".into());
+                            state.message = Some(crate::i18n::t().wrote_config_toml.into());
                         }
-                        Err(e) => state.message = Some(format!("保存失败: {e}")),
+                        Err(e) => state.message = Some(crate::i18n::save_failed(&e)),
                     }
                 }
                 if ghost_button(ui, crate::i18n::t().reload).clicked() {
                     state.cli_toml = CliTomlConfig::load();
                     state.dirty_toml = false;
-                    state.message = Some("已从磁盘重新加载".into());
+                    state.message = Some(crate::i18n::t().reloaded_from_disk.into());
                 }
                 if state.dirty_toml {
                     ui.label(
@@ -1098,8 +1103,8 @@ fn tab_advanced(
 
     section(
         ui,
-        "本机会话",
-        &format!("{} 条 · ~/.grok/sessions", sessions.len()),
+        crate::i18n::t().local_sessions,
+        &crate::i18n::sessions_count_line(sessions.len()),
         |ui| {
             if ghost_button(ui, crate::i18n::t().view_in_sidebar).clicked() {
                 actions.open_sessions_focus = true;
@@ -1133,13 +1138,14 @@ fn tab_advanced(
 }
 
 fn tab_about(ui: &mut Ui) {
-    section(ui, "Grok Desktop", "", |ui| {
+    let s = crate::i18n::t();
+    section(ui, s.app_name, "", |ui| {
         ui.horizontal(|ui| {
             icons::grok_logo(ui, 36.0);
             ui.add_space(10.0);
             ui.vertical(|ui| {
                 ui.label(
-                    RichText::new(format!("版本 {}", env!("CARGO_PKG_VERSION")))
+                    RichText::new(crate::i18n::version_line(env!("CARGO_PKG_VERSION")))
                         .size(16.0)
                         .strong()
                         .color(theme::TEXT()),
@@ -1153,32 +1159,29 @@ fn tab_about(ui: &mut Ui) {
         });
         ui.add_space(10.0);
         ui.label(
-            RichText::new("认证与会话复用官方 CLI (~/.grok)")
+            RichText::new(s.auth_reuse_cli)
                 .size(12.5)
+                .color(theme::TEXT_3()),
+        );
+        ui.add_space(6.0);
+        ui.label(
+            RichText::new(s.unofficial_notice)
+                .size(12.0)
                 .color(theme::TEXT_3()),
         );
     });
 
-    section(ui, crate::i18n::t().links, "", |ui| {
-        ui.hyperlink_to("xAI CLI 安装", "https://x.ai/cli");
-        ui.hyperlink_to("Grok Build", "https://github.com/xai-org/grok-build");
-        ui.hyperlink_to(
-            "参考客户端 RongleCat/grok-app",
-            "https://github.com/RongleCat/grok-app",
-        );
+    section(ui, s.links, "", |ui| {
+        ui.hyperlink_to(s.link_xai_cli, "https://x.ai/cli");
+        ui.hyperlink_to(s.link_grok_build, "https://github.com/xai-org/grok-build");
+        ui.hyperlink_to(s.ref_client, "https://github.com/RongleCat/grok-app");
     });
 
-    section(ui, crate::i18n::t().capabilities, "", |ui| {
+    section(ui, s.capabilities, "", |ui| {
         ui.label(
-            RichText::new(
-                "• 流式对话 / 思考过程 / 工具调用\n\
-                 • 图片：Ctrl+V · 附件 · 拖放\n\
-                 • 会话按项目目录分组\n\
-                 • 日间 / 夜间 · 系统标题栏跟随\n\
-                 • 新建对话可绑定工作目录",
-            )
-            .size(13.0)
-            .color(theme::TEXT_2()),
+            RichText::new(s.about_capabilities_body)
+                .size(13.0)
+                .color(theme::TEXT_2()),
         );
     });
 }
