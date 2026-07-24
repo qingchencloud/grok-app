@@ -51,6 +51,24 @@ jobs:
           path: target/release/GrokDesktop.exe
           if-no-files-found: error
 
+  build-macos:
+    name: Build (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: test
+        run: cargo test --test core_logic
+      - name: build
+        run: cargo build --release --bin GrokDesktop
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GrokDesktop-macos
+          path: target/release/GrokDesktop
+          if-no-files-found: error
+
   site-check:
     name: Landing page check
     runs-on: ubuntu-latest

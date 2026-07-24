@@ -1,6 +1,6 @@
 //! Settings — redesigned workbench panel (left nav + clean form sections).
 
-use crate::config::{effort_label, normalize_effort, resolve_grok_binary, AppConfig, EFFORTS, MODELS};
+use crate::config::{effort_label, normalize_effort, resolve_grok_binary, AppConfig, MODELS};
 use crate::local::install::{probe_status, probe_status_fast, CliInstallStatus, INSTALL_URL};
 use crate::local::{CliTomlConfig, LocalSession};
 use crate::ui::icons::{self, IconKind};
@@ -290,7 +290,7 @@ pub fn draw_settings(
                                 ui.horizontal(|ui| {
                                     icons::grok_logo(ui, 18.0);
                                     ui.label(
-                                        RichText::new("设置")
+                                        RichText::new(crate::i18n::t().settings)
                                             .size(14.0)
                                             .strong()
                                             .color(theme::TEXT()),
@@ -733,11 +733,11 @@ fn tab_appearance(ui: &mut Ui, state: &mut SettingsState, actions: &mut Settings
 
 
 fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActions) {
-    section(ui, "模型", "启动 agent 时使用的模型 id", |ui| {
+    section(ui, crate::i18n::t().model, crate::i18n::t().model_hint, |ui| {
         ui.horizontal(|ui| {
             egui::ComboBox::from_id_salt("set_model")
                 .selected_text(if state.model.is_empty() {
-                    "选择模型"
+                    crate::i18n::t().select_model
                 } else {
                     &state.model
                 })
@@ -750,20 +750,20 @@ fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActio
             ui.add(
                 TextEdit::singleline(&mut state.model)
                     .desired_width(ui.available_width().max(120.0))
-                    .hint_text("或手动输入"),
+                    .hint_text(crate::i18n::t().or_type_model),
             );
         });
     });
 
     section(
         ui,
-        "推理强度",
-        "对应 CLI `--reasoning-effort` / `--effort`（low · medium · high）",
+        crate::i18n::t().effort_heading,
+        crate::i18n::t().effort_hint,
         |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 8.0;
-                for (id, label) in EFFORTS {
-                    let active = normalize_effort(&state.effort) == *id;
+                for (id, label) in crate::config::effort_choices() {
+                    let active = normalize_effort(&state.effort) == id;
                     let fill = if active {
                         theme::SELECTED()
                     } else {
@@ -771,7 +771,7 @@ fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActio
                     };
                     let resp = ui.add(
                         egui::Button::new(
-                            RichText::new(*label)
+                            RichText::new(label)
                                 .size(12.5)
                                 .color(if active {
                                     theme::TEXT()
@@ -789,7 +789,7 @@ fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActio
                         .min_size(egui::vec2(88.0, 32.0)),
                     );
                     if resp.clicked() {
-                        state.effort = (*id).to_string();
+                        state.effort = id.to_string();
                     }
                 }
             });
@@ -806,17 +806,17 @@ fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActio
         },
     );
 
-    section(ui, "工作目录", "新建对话与工具读写的默认根目录", |ui| {
+    section(ui, crate::i18n::t().working_dir, crate::i18n::t().working_dir_hint, |ui| {
         ui.horizontal(|ui| {
             let w = (ui.available_width() - 48.0).max(160.0);
             ui.add(
                 TextEdit::singleline(&mut state.cwd)
                     .desired_width(w)
-                    .hint_text("项目路径"),
+                    .hint_text(crate::i18n::t().working_dir),
             );
             if ui
                 .add_sized([40.0, 28.0], egui::Button::new("…"))
-                .on_hover_text("选择文件夹")
+                .on_hover_text(crate::i18n::t().pick_folder)
                 .clicked()
             {
                 if let Some(dir) = rfd::FileDialog::new().pick_folder() {
@@ -826,27 +826,27 @@ fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActio
         });
     });
 
-    section(ui, "权限与连接", "", |ui| {
+    section(ui, crate::i18n::t().permissions, "", |ui| {
         row_toggle(
             ui,
-            "自动批准工具",
-            "等价 --always-approve，适合本机可信环境",
+            crate::i18n::t().always_approve,
+            crate::i18n::t().always_approve_hint,
             &mut state.always_approve,
         );
         ui.add_space(10.0);
         row_toggle(
             ui,
-            "启动时自动连接",
-            "打开应用后自动拉起 grok agent",
+            crate::i18n::t().auto_connect,
+            crate::i18n::t().auto_connect_hint,
             &mut state.auto_connect,
         );
     });
 
-    section(ui, "grok 可执行文件", "留空则自动检测 ~/.grok/bin 与 PATH", |ui| {
+    section(ui, crate::i18n::t().grok_binary, crate::i18n::t().grok_binary_hint, |ui| {
         ui.add(
             TextEdit::singleline(&mut state.grok_path)
                 .desired_width(ui.available_width())
-                .hint_text("留空 = 自动检测"),
+                .hint_text(crate::i18n::t().auto_detect),
         );
         if let Ok(p) = resolve_grok_binary(if state.grok_path.is_empty() {
             ""
@@ -859,10 +859,10 @@ fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActio
     });
 
     ui.horizontal(|ui| {
-        if primary_button(ui, "保存并重连", true).clicked() {
+        if primary_button(ui, crate::i18n::t().save_and_reconnect, true).clicked() {
             actions.save_agent_and_reconnect = true;
         }
-        if ghost_button(ui, "仅保存").clicked() {
+        if ghost_button(ui, crate::i18n::t().save_only).clicked() {
             actions.save_config = true;
             actions.reconnect = false;
         }
@@ -884,12 +884,12 @@ fn tab_cli(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActions
         .as_ref()
         .map(|p| p.display().to_string());
 
-    section(ui, "状态", "桌面端通过 grok agent stdio 对接官方 CLI", |ui| {
+    section(ui, crate::i18n::t().cli_status, crate::i18n::t().cli_status_hint, |ui| {
         ui.horizontal(|ui| {
             let (c, t) = if installed {
-                (theme::SUCCESS(), "已安装")
+                (theme::SUCCESS(), crate::i18n::t().cli_installed)
             } else {
-                (theme::WARNING(), "未检测到 CLI")
+                (theme::WARNING(), crate::i18n::t().cli_missing)
             };
             ui.colored_label(c, format!("● {t}"));
             if let Some(v) = &version {
@@ -921,25 +921,25 @@ fn tab_cli(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActions
 
     section(
         ui,
-        "安装 / 更新",
+        crate::i18n::t().install_update,
         &format!("PowerShell: irm {INSTALL_URL} | iex"),
         |ui| {
             ui.horizontal_wrapped(|ui| {
                 let label = if state.installing {
-                    "安装中…"
+                    crate::i18n::t().installing
                 } else if installed {
-                    "重新安装 / 更新"
+                    crate::i18n::t().reinstall_update
                 } else {
-                    "一键安装 CLI"
+                    crate::i18n::t().install_cli_once
                 };
                 if primary_button(ui, label, !state.installing).clicked() {
                     actions.start_install = true;
                 }
-                if ghost_button(ui, "刷新").clicked() {
+                if ghost_button(ui, crate::i18n::t().refresh).clicked() {
                     state.refresh_cli();
-                    state.message = Some("状态已刷新".into());
+                    state.message = Some(crate::i18n::t().status_refreshed.into());
                 }
-                if ghost_button(ui, "登录").clicked() {
+                if ghost_button(ui, crate::i18n::t().login).clicked() {
                     actions.open_login = true;
                 }
             });
@@ -947,7 +947,7 @@ fn tab_cli(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActions
     );
 
     if !state.install_logs.is_empty() {
-        section(ui, "安装日志", "", |ui| {
+        section(ui, crate::i18n::t().install_log, "", |ui| {
             ScrollArea::vertical()
                 .id_salt("install_logs_v2")
                 .max_height(160.0)
@@ -1070,7 +1070,7 @@ fn tab_advanced(
 
             ui.add_space(12.0);
             ui.horizontal(|ui| {
-                if primary_button(ui, "保存 config.toml", true).clicked() {
+                if primary_button(ui, crate::i18n::t().save_config_toml, true).clicked() {
                     match state.cli_toml.save() {
                         Ok(()) => {
                             state.dirty_toml = false;
@@ -1080,14 +1080,14 @@ fn tab_advanced(
                         Err(e) => state.message = Some(format!("保存失败: {e}")),
                     }
                 }
-                if ghost_button(ui, "重新加载").clicked() {
+                if ghost_button(ui, crate::i18n::t().reload).clicked() {
                     state.cli_toml = CliTomlConfig::load();
                     state.dirty_toml = false;
                     state.message = Some("已从磁盘重新加载".into());
                 }
                 if state.dirty_toml {
                     ui.label(
-                        RichText::new("未保存")
+                        RichText::new(crate::i18n::t().unsaved)
                             .size(11.5)
                             .color(theme::WARNING()),
                     );
@@ -1101,7 +1101,7 @@ fn tab_advanced(
         "本机会话",
         &format!("{} 条 · ~/.grok/sessions", sessions.len()),
         |ui| {
-            if ghost_button(ui, "在侧栏查看").clicked() {
+            if ghost_button(ui, crate::i18n::t().view_in_sidebar).clicked() {
                 actions.open_sessions_focus = true;
             }
             ui.add_space(8.0);
@@ -1159,7 +1159,7 @@ fn tab_about(ui: &mut Ui) {
         );
     });
 
-    section(ui, "链接", "", |ui| {
+    section(ui, crate::i18n::t().links, "", |ui| {
         ui.hyperlink_to("xAI CLI 安装", "https://x.ai/cli");
         ui.hyperlink_to("Grok Build", "https://github.com/xai-org/grok-build");
         ui.hyperlink_to(
@@ -1168,7 +1168,7 @@ fn tab_about(ui: &mut Ui) {
         );
     });
 
-    section(ui, "本客户端能力", "", |ui| {
+    section(ui, crate::i18n::t().capabilities, "", |ui| {
         ui.label(
             RichText::new(
                 "• 流式对话 / 思考过程 / 工具调用\n\
@@ -1185,7 +1185,7 @@ fn tab_about(ui: &mut Ui) {
 
 fn footer_save(ui: &mut Ui, actions: &mut SettingsActions, reconnect: bool) {
     ui.horizontal(|ui| {
-        if primary_button(ui, "保存设置", true).clicked() {
+        if primary_button(ui, crate::i18n::t().save_settings, true).clicked() {
             actions.save_config = true;
             actions.reconnect = reconnect;
         }

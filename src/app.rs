@@ -2,7 +2,7 @@ use crate::acp::parse::build_history_bootstrap;
 use crate::acp::{AcpClient, AgentEvent, ChatImage, PermissionOption, TimelineItem};
 use crate::attachments::{self, PendingImage};
 use crate::config::{
-    effort_label, is_cli_authenticated, normalize_effort, resolve_grok_binary, AppConfig, EFFORTS,
+    effort_label, is_cli_authenticated, normalize_effort, resolve_grok_binary, AppConfig,
     MODELS,
 };
 use crate::local::install::{install_cli, InstallProgress};
@@ -213,7 +213,7 @@ impl GrokApp {
             clipboard_image_ready: false,
             image_preview: None,
             message_textures: std::collections::HashMap::new(),
-            status: "未连接".into(),
+            status: crate::i18n::t().not_connected.into(),
             agent_label: String::new(),
             store: SessionStore::new(),
             agent_pid: None,
@@ -253,12 +253,12 @@ impl GrokApp {
             app.settings.open = true;
             app.settings.tab = SettingsTab::Cli;
             app.error_banner =
-                Some("未找到 grok CLI — 可在设置里一键安装".into());
+                Some(crate::i18n::t().cli_missing_banner.into());
         }
 
         if !is_cli_authenticated() {
             app.logs.push(
-                "提示: 未检测到 ~/.grok/auth.json 或 XAI_API_KEY，可点侧栏「登录」".into(),
+                crate::i18n::t().auth_missing_hint.into(),
             );
         }
 
@@ -407,7 +407,7 @@ impl GrokApp {
         }
         self.settings.installing = true;
         self.settings.install_logs.clear();
-        self.settings.install_logs.push("开始安装官方 CLI…".into());
+        self.settings.install_logs.push(crate::i18n::t().install_start.into());
         self.settings.tab = SettingsTab::Cli;
         self.settings.open = true;
         let (tx, rx) = std_mpsc::channel();
@@ -432,7 +432,7 @@ impl GrokApp {
                 InstallProgress::Started => {
                     self.settings
                         .install_logs
-                        .push("安装进程已启动…".into());
+                        .push(crate::i18n::t().install_started.into());
                 }
                 InstallProgress::Log(line) => {
                     self.settings.install_logs.push(line);
@@ -483,19 +483,19 @@ impl GrokApp {
             theme::apply(ctx, self.config.dark_mode);
             let _ = self.config.save();
             self.settings.message = Some(if self.config.dark_mode {
-                "已切换到夜间模式".into()
+                crate::i18n::t().status_switched_dark.into()
             } else {
-                "已切换到日间模式".into()
+                crate::i18n::t().status_switched_light.into()
             });
         }
         if actions.save_config {
             self.apply_settings_to_config();
             if let Err(e) = self.config.save() {
-                self.error_banner = Some(format!("保存失败: {e}"));
+                self.error_banner = Some(crate::i18n::save_failed(&e));
             } else {
                 theme::apply(ctx, self.config.dark_mode);
                 self.apply_font_scale(ctx);
-                self.settings.message = Some("设置已保存".into());
+                self.settings.message = Some(crate::i18n::t().settings_saved.into());
                 if actions.reconnect {
                     self.connect_agent(ctx);
                 }
@@ -506,10 +506,10 @@ impl GrokApp {
             theme::apply(ctx, self.config.dark_mode);
             self.apply_font_scale(ctx);
             if let Err(e) = self.config.save() {
-                self.error_banner = Some(format!("保存失败: {e}"));
+                self.error_banner = Some(crate::i18n::save_failed(&e));
             } else {
                 self.settings.open = false;
-                self.settings.message = Some("Agent 设置已保存，正在重连…".into());
+                self.settings.message = Some(crate::i18n::t().agent_settings_saved.into());
                 self.connect_agent(ctx);
             }
         }
@@ -602,7 +602,7 @@ impl GrokApp {
 
         let sid = sess.id.clone();
         let cwd = sess.cwd.clone();
-        self.status = format!("会话 {}", short_id(&sid));
+        self.status = crate::i18n::session_label(&short_id(&sid));
 
         let client = self.client.lock().clone();
         if let Some(client) = client {
@@ -640,7 +640,7 @@ impl GrokApp {
         }
         self.store.begin_connect();
         self.agent_pid = None;
-        self.status = "正在连接…".into();
+        self.status = crate::i18n::t().connecting_ellipsis.into();
         self.error_banner = None;
 
         if let Some(old) = self.client.lock().take() {
@@ -667,7 +667,7 @@ impl GrokApp {
                 }
                 Err(e) => {
                     let _ = event_tx.send(AgentEvent::Error {
-                        message: format!("连接失败: {e:#}"),
+                        message: crate::i18n::connect_failed(e),
                         turn_gen: None,
                     });
                 }
@@ -685,7 +685,7 @@ impl GrokApp {
         }
         self.agent_pid = None;
         self.store.disconnect();
-        self.status = "已断开".into();
+        self.status = crate::i18n::t().status_disconnected.into();
     }
 
     /// Rough local context estimate from timeline (fallback when CLI has no usage).
@@ -751,11 +751,11 @@ impl GrokApp {
         };
         let cwd = draft.cwd.trim().to_string();
         if cwd.is_empty() {
-            self.error_banner = Some("请指定工作目录".into());
+            self.error_banner = Some(crate::i18n::t().err_need_cwd.into());
             return;
         }
         if !std::path::Path::new(&cwd).is_dir() {
-            self.error_banner = Some(format!("目录不存在: {cwd}"));
+            self.error_banner = Some(crate::i18n::err_cwd_missing(&cwd));
             self.new_chat_draft = Some(draft);
             return;
         }
@@ -783,13 +783,13 @@ impl GrokApp {
         if let Some(client) = client {
             let event_tx = self.event_tx.clone();
             let repaint = ctx.clone();
-            self.status = format!("新建会话 · {}", widgets::path_short(&cwd, 28));
+            self.status = crate::i18n::new_session_status(&widgets::path_short(&cwd, 28));
             self.rt.spawn(async move {
                 // Force a brand-new session under the chosen cwd
                 client.clear_session();
                 if let Err(e) = client.new_session(&cwd).await {
                     let _ = event_tx.send(AgentEvent::Error {
-                        message: format!("创建会话失败: {e:#}"),
+                        message: crate::i18n::create_session_failed(e),
                         turn_gen: None,
                     });
                 }
@@ -838,13 +838,13 @@ impl GrokApp {
     fn jump_prev_user_message(&mut self) {
         let ids = self.user_message_ids();
         if ids.is_empty() {
-            self.status = "没有用户消息可跳转".into();
+            self.status = crate::i18n::t().status_no_user_msg.into();
             return;
         }
         let target = match &self.focused_user_msg_id {
             Some(cur) => match ids.iter().position(|x| x == cur) {
                 Some(0) => {
-                    self.status = "已是第一条用户消息".into();
+                    self.status = crate::i18n::t().status_first_user_msg.into();
                     return;
                 }
                 Some(i) => ids[i - 1].clone(),
@@ -854,14 +854,14 @@ impl GrokApp {
             None => ids[ids.len() - 1].clone(),
         };
         self.focus_user_message(target);
-        self.status = "已定位到上一条用户消息".into();
+        self.status = crate::i18n::t().status_jumped_prev.into();
     }
 
     /// Jump to next user message (Ctrl+↓). Past last → stick to bottom.
     fn jump_next_user_message(&mut self) {
         let ids = self.user_message_ids();
         if ids.is_empty() {
-            self.status = "没有用户消息可跳转".into();
+            self.status = crate::i18n::t().status_no_user_msg.into();
             return;
         }
         let target = match &self.focused_user_msg_id {
@@ -873,7 +873,7 @@ impl GrokApp {
                     self.scroll_to_item_id = None;
                     self.scroll_to_bottom = true;
                     self.chat_away_from_bottom = false;
-                    self.status = "已到最新".into();
+                    self.status = crate::i18n::t().status_at_latest.into();
                     return;
                 }
                 None => ids[ids.len() - 1].clone(),
@@ -881,12 +881,12 @@ impl GrokApp {
             None => {
                 self.scroll_to_bottom = true;
                 self.chat_away_from_bottom = false;
-                self.status = "已到最新".into();
+                self.status = crate::i18n::t().status_at_latest.into();
                 return;
             }
         };
         self.focus_user_message(target);
-        self.status = "已定位到下一条用户消息".into();
+        self.status = crate::i18n::t().status_jumped_next.into();
     }
 
     fn focus_user_message(&mut self, id: String) {
@@ -906,13 +906,13 @@ impl GrokApp {
         // If UI thinks we're free but agent still has a prompt RPC open, cancel first.
         let client = self.client.lock().clone();
         let Some(client) = client else {
-            self.error_banner = Some("尚未连接 Agent，请先在侧栏连接".into());
+            self.error_banner = Some(crate::i18n::t().err_not_connected.into());
             self.connect_agent(ctx);
             return;
         };
         if self.store.busy() {
             // Still in a turn — user should stop first; do not stack prompts.
-            self.error_banner = Some("上一轮尚未结束，请先点「停止」再发送".into());
+            self.error_banner = Some(crate::i18n::t().err_busy.into());
             return;
         }
         if client.is_prompt_inflight() {
@@ -965,9 +965,9 @@ impl GrokApp {
         self.smooth_assistant.clear();
         self.smooth_thought.clear();
         self.status = if images.is_empty() {
-            "生成中…".into()
+            crate::i18n::t().generating_ellipsis.into()
         } else {
-            format!("生成中…（{} 个附件）", images.len())
+            crate::i18n::generating_with_n(images.len())
         };
         self.scroll_to_bottom = true;
         self.chat_away_from_bottom = false;
@@ -1099,7 +1099,7 @@ impl GrokApp {
             // Skip a couple frames so egui-winit/arboard can release the clipboard,
             // then probe for ~300ms.
             self.paste_probe_frames = 20;
-            self.status = "读取剪贴板…".into();
+            self.status = crate::i18n::t().status_reading_clipboard.into();
             self.error_banner = None;
             self.consume_paste_events(ctx);
             ctx.request_repaint_after(std::time::Duration::from_millis(30));
@@ -1153,14 +1153,14 @@ impl GrokApp {
                     self.input.push_str(&t);
                 }
             }
-            self.status = "已粘贴文字".into();
+            self.status = crate::i18n::t().status_pasted_text.into();
             self.input_focus_request = true;
             return;
         }
         if let Some(t) = attachments::clipboard_text() {
             if !t.is_empty() {
                 self.input.push_str(&t);
-                self.status = "已粘贴文字".into();
+                self.status = crate::i18n::t().status_pasted_text.into();
                 self.input_focus_request = true;
                 return;
             }
@@ -1175,7 +1175,7 @@ impl GrokApp {
             ));
         } else {
             // Quiet: most often user hit Ctrl+V with empty / non-image clipboard
-            self.status = "就绪".into();
+            self.status = crate::i18n::t().status_ready.into();
         }
     }
 
@@ -1223,7 +1223,7 @@ impl GrokApp {
 
     fn pick_image_files(&mut self) {
         let files = rfd::FileDialog::new()
-            .add_filter("图片", &["png", "jpg", "jpeg", "gif", "webp", "bmp"])
+            .add_filter(crate::i18n::t().images_filter, &["png", "jpg", "jpeg", "gif", "webp", "bmp"])
             .pick_files();
         if let Some(paths) = files {
             for p in paths {
@@ -1329,7 +1329,7 @@ impl GrokApp {
                 repaint.request_repaint();
             });
         }
-        self.force_unlock_ui("已停止");
+        self.force_unlock_ui(crate::i18n::t().status_stopped);
     }
 
     /// Free the UI. Always cancels the in-flight ACP prompt when a client exists —
@@ -1412,7 +1412,7 @@ impl GrokApp {
         self.logs
             .push(format!("启动登录: {} login", bin.display()));
         let _ = std::process::Command::new(bin).arg("login").spawn();
-        self.status = "已打开 grok login".into();
+        self.status = crate::i18n::t().status_login_opened.into();
     }
 
     fn poll_events(&mut self, ctx: &egui::Context) {
@@ -1444,7 +1444,7 @@ impl GrokApp {
                     };
                     // Refresh PID after handshake (client already stored)
                     self.agent_pid = self.client.lock().as_ref().and_then(|c| c.child_pid());
-                    self.status = "已连接".into();
+                    self.status = crate::i18n::t().status_connected.into();
                     self.logs
                         .push(format!("已连接: {}", self.agent_label));
                 }
@@ -1461,7 +1461,7 @@ impl GrokApp {
                 }
                 AgentEvent::SessionCreated { session_id } => {
                     self.store.set_session_id(Some(session_id.clone()));
-                    self.status = format!("会话 {}", short_id(&session_id));
+                    self.status = crate::i18n::session_label(&short_id(&session_id));
                     self.logs.push(format!("session: {session_id}"));
                     // App-owned index entry (not automatic CLI dump)
                     self.register_app_session(&session_id);
@@ -1485,7 +1485,7 @@ impl GrokApp {
                     }
                     self.smooth_assistant.push_chunk(&text);
                     self.store.note_message_chunk();
-                    self.status = "生成中…".into();
+                    self.status = crate::i18n::t().generating_ellipsis.into();
                     if !self.chat_away_from_bottom {
                         self.scroll_to_bottom = true;
                     }
@@ -1504,7 +1504,7 @@ impl GrokApp {
                     }
                     self.smooth_thought.push_chunk(&text);
                     self.store.note_thought_chunk();
-                    self.status = "思考中…".into();
+                    self.status = crate::i18n::t().thinking_ellipsis.into();
                     if !self.chat_away_from_bottom {
                         self.scroll_to_bottom = true;
                     }
@@ -1527,7 +1527,7 @@ impl GrokApp {
                     let detail = raw_input
                         .map(|v| compact_json_preview(&v, 160))
                         .unwrap_or_default();
-                    self.status = format!("工具 · {title}");
+                    self.status = crate::i18n::tool_status(&title);
                     let st = crate::acp::parse::normalize_tool_status(&status);
                     self.store.note_tool_call(&title, &st);
 
@@ -1669,10 +1669,10 @@ impl GrokApp {
                                     }
                                 }
                                 if terminal {
-                                    self.status = format!("工具完成 · {last_title}");
+                                    self.status = crate::i18n::tool_done_status(&last_title);
                                     self.store.clear_live_tool();
                                 } else if crate::acp::parse::tool_status_is_running(s) {
-                                    self.status = format!("工具执行中 · {t}");
+                                    self.status = crate::i18n::tool_running_status(&t);
                                     self.store.note_tool_status(t, s);
                                 }
                             }
@@ -1717,7 +1717,7 @@ impl GrokApp {
                         id: Uuid::new_v4().to_string(),
                         entries,
                     });
-                    self.status = "规划中…".into();
+                    self.status = crate::i18n::t().planning_ellipsis.into();
                     if !self.chat_away_from_bottom {
                         self.scroll_to_bottom = true;
                     }
@@ -1734,7 +1734,7 @@ impl GrokApp {
                             self.logs.push(format!(
                                 "自动批准权限: {title} ({tool_call_id}) → {opt}"
                             ));
-                            self.status = format!("自动批准 · {title}");
+                            self.status = crate::i18n::auto_approved(&title);
                             auto_perms.push((request_id, opt));
                             continue;
                         }
@@ -1745,7 +1745,7 @@ impl GrokApp {
                         title: title.clone(),
                         options,
                     });
-                    self.status = format!("等待权限 · {title}");
+                    self.status = crate::i18n::waiting_permission(&title);
                 }
                 AgentEvent::PromptFinished {
                     stop_reason,
@@ -1756,12 +1756,12 @@ impl GrokApp {
                         || stop_reason.is_empty()
                     {
                         if stop_reason == "cancelled" {
-                            "已取消".to_string()
+                            crate::i18n::t().cancelled.to_string()
                         } else {
-                            "就绪".to_string()
+                            crate::i18n::t().ready.to_string()
                         }
                     } else {
-                        format!("完成 · {stop_reason}")
+                        crate::i18n::finished_with(&stop_reason)
                     };
                     if self.finish_turn_if_gen(turn_gen, st) {
                         if let Some(sid) = self.store.session_id_owned() {
@@ -1785,11 +1785,11 @@ impl GrokApp {
                     }
                     let gen = self.store.turn_gen();
                     let st = if stop_reason == "cancelled" {
-                        "已取消".to_string()
+                        crate::i18n::t().cancelled.to_string()
                     } else if stop_reason.is_empty() || stop_reason == "end_turn" {
-                        "就绪".to_string()
+                        crate::i18n::t().ready.to_string()
                     } else {
-                        format!("完成 · {stop_reason}")
+                        crate::i18n::finished_with(&stop_reason)
                     };
                     if self.finish_turn_if_gen(gen, st) {
                         self.logs
@@ -1833,7 +1833,7 @@ impl GrokApp {
                     self.finalize_open_streams();
                     self.mark_running_tools_terminal("failed");
                     self.error_banner = Some(message.clone());
-                    self.status = "出错".into();
+                    self.status = crate::i18n::t().error_status.into();
                     self.logs.push(format!("ERROR: {message}"));
                     self.timeline.push(TimelineItem::Status {
                         id: Uuid::new_v4().to_string(),
@@ -2051,7 +2051,7 @@ impl GrokApp {
                     .color(theme::TEXT()),
             );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if widgets::icon_btn(ui, IconKind::Settings, "设置").clicked() {
+                if widgets::icon_btn(ui, IconKind::Settings, crate::i18n::t().settings).clicked() {
                     self.open_settings();
                 }
             });
@@ -2059,12 +2059,12 @@ impl GrokApp {
         ui.add_space(theme::SPACE_XS);
 
         // Nav: new chat — primary
-        if nav_row(ui, IconKind::Plus, "新对话").clicked() {
+        if nav_row(ui, IconKind::Plus, crate::i18n::t().new_chat).clicked() {
             self.begin_new_chat();
         }
         ui.add_space(6.0);
         // Session search
-        let _ = search_field(ui, "sess_search", &mut self.session_filter, "搜索会话…");
+        let _ = search_field(ui, "sess_search", &mut self.session_filter, crate::i18n::t().search_sessions);
         ui.add_space(4.0);
         // Quiet utilities — centered under search (App-first, not primary CTAs)
         ui.horizontal(|ui| {
@@ -2073,8 +2073,8 @@ impl GrokApp {
             let pair_w = 72.0;
             ui.add_space(((w - pair_w) * 0.5).max(0.0));
             ui.spacing_mut().item_spacing.x = 16.0;
-            if quiet_link(ui, "导入")
-                .on_hover_text("从 CLI 导入会话到 App 列表")
+            if quiet_link(ui, crate::i18n::t().import)
+                .on_hover_text(crate::i18n::t().import_tip)
                 .clicked()
             {
                 self.show_import_panel = true;
@@ -2082,8 +2082,8 @@ impl GrokApp {
                 self.import_candidates = list_cli_import_candidates(120);
             }
             ui.label(RichText::new("·").size(11.0).color(theme::TEXT_3()));
-            if quiet_link(ui, "归档")
-                .on_hover_text("查看已归档会话")
+            if quiet_link(ui, crate::i18n::t().archive)
+                .on_hover_text(crate::i18n::t().archive_tip)
                 .clicked()
             {
                 self.show_archive_panel = true;
@@ -2141,7 +2141,7 @@ impl GrokApp {
                         egui::vec2(head_w, theme::TREE_L1_H),
                         Layout::left_to_right(Align::Center),
                         |ui| {
-                            if tree_section_head(ui, "项目", projects_open).clicked() {
+                            if tree_section_head(ui, crate::i18n::t().projects, projects_open).clicked() {
                                 if projects_open {
                                     self.collapsed_projects
                                         .insert("__section:projects".into());
@@ -2153,7 +2153,7 @@ impl GrokApp {
                         },
                     );
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if widgets::icon_btn(ui, IconKind::Refresh, "刷新会话").clicked() {
+                        if widgets::icon_btn(ui, IconKind::Refresh, crate::i18n::t().refresh_sessions).clicked() {
                             self.refresh_sessions();
                         }
                     });
@@ -2169,9 +2169,9 @@ impl GrokApp {
                         ui.set_max_width(side_w - 8.0);
                         ui.label(
                             RichText::new(if self.session_filter.trim().is_empty() {
-                                "暂无会话"
+                                crate::i18n::t().no_sessions
                             } else {
-                                "无匹配会话"
+                                crate::i18n::t().no_match_sessions
                             })
                             .size(12.5)
                             .color(theme::TEXT_2()),
@@ -2179,7 +2179,7 @@ impl GrokApp {
                         if self.session_filter.trim().is_empty() {
                             ui.add_space(4.0);
                             ui.label(
-                                RichText::new("点上方「新对话」开始")
+                                RichText::new(crate::i18n::t().click_new_chat)
                                     .size(11.5)
                                     .color(theme::TEXT_3()),
                             );
@@ -2216,11 +2216,11 @@ impl GrokApp {
                         }
                         hdr.context_menu(|ui| {
                             ui.set_min_width(140.0);
-                            if ui.button("在此项目新建对话").clicked() {
+                            if ui.button(crate::i18n::t().new_chat_in_project).clicked() {
                                 new_in_project = Some(g.path_display.clone());
                                 ui.close_menu();
                             }
-                            if ui.button(if collapsed { "展开" } else { "折叠" }).clicked() {
+                            if ui.button(if collapsed { crate::i18n::t().expand } else { crate::i18n::t().collapse }).clicked() {
                                 toggle_project = Some((g.key.clone(), !collapsed));
                                 ui.close_menu();
                             }
@@ -2237,7 +2237,7 @@ impl GrokApp {
                                     ui.spacing_mut().item_spacing.y = theme::SESSION_ROW_GAP;
                                     if g.sessions.is_empty() {
                                         ui.label(
-                                            RichText::new("暂无对话")
+                                            RichText::new(crate::i18n::t().no_chats)
                                                 .size(12.0)
                                                 .color(theme::TEXT_3()),
                                         );
@@ -2257,7 +2257,7 @@ impl GrokApp {
                                                 )
                                             };
                                             let title = if s.title.is_empty() {
-                                                "无标题"
+                                                crate::i18n::t().untitled
                                             } else {
                                                 s.title.as_str()
                                             };
@@ -2274,15 +2274,15 @@ impl GrokApp {
                                             }
                                             resp.context_menu(|ui| {
                                                 ui.set_min_width(150.0);
-                                                if ui.button("打开").clicked() {
+                                                if ui.button(crate::i18n::t().open).clicked() {
                                                     open_sess = Some(s.clone());
                                                     ui.close_menu();
                                                 }
-                                                if ui.button("重命名…").clicked() {
+                                                if ui.button(crate::i18n::t().rename).clicked() {
                                                     start_rename = Some(s.clone());
                                                     ui.close_menu();
                                                 }
-                                                if ui.button("归档").clicked() {
+                                                if ui.button(crate::i18n::t().archive).clicked() {
                                                     do_archive = Some(s.clone());
                                                     ui.close_menu();
                                                 }
@@ -2290,13 +2290,13 @@ impl GrokApp {
                                                 if ui
                                                     .add(
                                                         egui::Button::new(
-                                                            RichText::new("删除（索引+磁盘）")
+                                                            RichText::new(crate::i18n::t().delete_index_disk)
                                                                 .color(theme::DANGER()),
                                                         )
                                                         .fill(Color32::TRANSPARENT),
                                                     )
                                                     .on_hover_text(
-                                                        "从 App 列表移除，并删除 ~/.grok 会话目录",
+                                                        crate::i18n::t().delete_index_disk_tip,
                                                     )
                                                     .clicked()
                                                 {
@@ -2336,7 +2336,7 @@ impl GrokApp {
                         self.store.set_session_id(None);
                     }
                     self.refresh_sessions();
-                    self.status = format!("已归档 · {}", s.title);
+                    self.status = crate::i18n::archived_status(&s.title);
                 }
                 Err(e) => {
                     self.error_banner = Some(format!("归档失败: {e:#}"));
@@ -2351,7 +2351,7 @@ impl GrokApp {
                         self.store.set_session_id(None);
                     }
                     self.refresh_sessions();
-                    self.status = "会话已删除".into();
+                    self.status = crate::i18n::t().status_deleted.into();
                 }
                 Err(e) => {
                     self.error_banner = Some(format!("删除失败: {e:#}"));
@@ -2375,11 +2375,11 @@ impl GrokApp {
         // Flat status row
         let color = theme::status_color(self.store.is_connected(), self.store.is_connecting());
         let label = if self.store.is_connected() {
-            "Agent 已连接"
+            crate::i18n::t().agent_connected
         } else if self.store.is_connecting() {
-            "连接中…"
+            crate::i18n::t().connecting_ellipsis
         } else {
-            "Agent 未连接"
+            crate::i18n::t().agent_disconnected
         };
         let cwd_full = self.config.cwd.clone();
         let cwd_short = std::path::Path::new(&cwd_full)
@@ -2394,7 +2394,7 @@ impl GrokApp {
             status_dot(ui, color, label);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if !self.store.is_connected() {
-                    if ghost_button(ui, "连接").clicked() {
+                    if ghost_button(ui, crate::i18n::t().connect).clicked() {
                         self.connect_agent(ctx);
                     }
                 } else {
@@ -2448,8 +2448,8 @@ impl GrokApp {
                             .min_size(egui::vec2(seg_w - 2.0, 26.0)),
                         )
                     };
-                    let day = seg(ui, !is_dark, "日间").on_hover_text("浅色外观");
-                    let night = seg(ui, is_dark, "夜间").on_hover_text("深色外观");
+                    let day = seg(ui, !is_dark, crate::i18n::t().day).on_hover_text(crate::i18n::t().day_tip);
+                    let night = seg(ui, is_dark, crate::i18n::t().night).on_hover_text(crate::i18n::t().night_tip);
                     if day.clicked() && is_dark {
                         self.config.dark_mode = false;
                         theme::apply(ctx, false);
@@ -2479,10 +2479,10 @@ impl GrokApp {
             ui.add_space(edge);
 
             if !self.sidebar_open {
-                if widgets::icon_btn(ui, IconKind::Sidebar, "显示侧栏").clicked() {
+                if widgets::icon_btn(ui, IconKind::Sidebar, crate::i18n::t().show_sidebar).clicked() {
                     self.sidebar_open = true;
                 }
-            } else if widgets::icon_btn(ui, IconKind::ChevronLeft, "收起侧栏").clicked() {
+            } else if widgets::icon_btn(ui, IconKind::ChevronLeft, crate::i18n::t().hide_sidebar).clicked() {
                 self.sidebar_open = false;
             }
 
@@ -2513,7 +2513,7 @@ impl GrokApp {
                 let mut model = self.config.model.clone();
                 let before_model = model.clone();
                 let model_label = if model.is_empty() {
-                    "模型".to_string()
+                    crate::i18n::t().model.to_string()
                 } else {
                     widgets::truncate_chars(&model, 12)
                 };
@@ -2524,7 +2524,7 @@ impl GrokApp {
                     .width(112.0)
                     .height(theme::BTN_H_SM)
                     .show_ui(ui, |ui| {
-                        ui.label(RichText::new("模型").size(11.0).color(theme::TEXT_3()));
+                        ui.label(RichText::new(crate::i18n::t().model).size(11.0).color(theme::TEXT_3()));
                         for m in MODELS {
                             ui.selectable_value(&mut model, (*m).to_string(), *m);
                         }
@@ -2548,7 +2548,7 @@ impl GrokApp {
                 let before_effort = effort.clone();
                 egui::ComboBox::from_id_salt("top_effort")
                     .selected_text(
-                        RichText::new(format!("强度 · {}", effort_label(&effort)))
+                        RichText::new(crate::i18n::effort_chip(&effort_label(&effort)))
                             .size(12.5)
                             .color(theme::TEXT_2()),
                     )
@@ -2556,16 +2556,16 @@ impl GrokApp {
                     .height(theme::BTN_H_SM)
                     .show_ui(ui, |ui| {
                         ui.label(
-                            RichText::new("推理强度")
+                            RichText::new(crate::i18n::t().effort_heading)
                                 .size(11.0)
                                 .color(theme::TEXT_3()),
                         );
-                        for (id, label) in EFFORTS {
-                            ui.selectable_value(&mut effort, (*id).to_string(), *label);
+                        for (id, label) in crate::config::effort_choices() {
+                            ui.selectable_value(&mut effort, id.to_string(), label);
                         }
                     })
                     .response
-                    .on_hover_text("low 更快 · medium 均衡 · high 更深（会重启 Agent）");
+                    .on_hover_text(crate::i18n::t().effort_hint);
                 if effort != before_effort {
                     self.config.effort = effort;
                     let _ = self.config.save();
@@ -2578,14 +2578,14 @@ impl GrokApp {
             if bar_w > 720.0 {
                 let cwd_short = widgets::path_short(&self.config.cwd, 16);
                 ui.label(RichText::new(cwd_short).size(12.0).color(theme::TEXT_3()))
-                    .on_hover_text(format!("工作目录\n{}", self.config.cwd));
+                    .on_hover_text(format!("{}\n{}", crate::i18n::t().working_dir, self.config.cwd));
             }
 
             // ── Session id chip ───────────────────────────────────
             if bar_w > 900.0 {
                 if let Some(sid) = &self.store.session_id_owned() {
                     ui.label(
-                        RichText::new(format!("会话 {}", short_id(sid)))
+                        RichText::new(crate::i18n::session_label(&short_id(sid)))
                             .size(11.5)
                             .color(theme::TEXT_3()),
                     )
@@ -2598,7 +2598,7 @@ impl GrokApp {
                 ui.spacing_mut().item_spacing.x = 8.0;
 
                 // Process menu
-                ui.menu_button(RichText::new("进程").size(12.0).color(theme::TEXT_2()), |ui| {
+                ui.menu_button(RichText::new(crate::i18n::t().process).size(12.0).color(theme::TEXT_2()), |ui| {
                     ui.set_min_width(180.0);
                     if let Some(pid) = self.agent_pid {
                         ui.label(
@@ -2609,7 +2609,7 @@ impl GrokApp {
                         );
                     } else {
                         ui.label(
-                            RichText::new("无 Agent 进程")
+                            RichText::new(crate::i18n::t().no_agent_process)
                                 .size(12.5)
                                 .color(theme::TEXT_3()),
                         );
@@ -2623,14 +2623,14 @@ impl GrokApp {
                     }
                     ui.separator();
                     if ui
-                        .add_enabled(!self.store.is_connecting(), egui::Button::new("连接 / 重连"))
+                        .add_enabled(!self.store.is_connecting(), egui::Button::new(crate::i18n::t().reconnect))
                         .clicked()
                     {
                         need_connect = true;
                         ui.close_menu();
                     }
                     if ui
-                        .add_enabled(self.store.is_connected() || self.store.is_connecting(), egui::Button::new("断开"))
+                        .add_enabled(self.store.is_connected() || self.store.is_connecting(), egui::Button::new(crate::i18n::t().disconnect))
                         .clicked()
                     {
                         need_disconnect = true;
@@ -2638,15 +2638,15 @@ impl GrokApp {
                     }
                     if self.store.busy()
                         && ui
-                            .button(RichText::new("强制结束本轮").color(theme::DANGER()))
+                            .button(RichText::new(crate::i18n::t().force_end_turn).color(theme::DANGER()))
                             .clicked()
                     {
-                        self.force_unlock_ui("已强制结束");
+                        self.force_unlock_ui(crate::i18n::t().status_force_ended);
                         ui.close_menu();
                     }
                 });
 
-                if widgets::icon_btn(ui, IconKind::Logs, "日志").clicked() {
+                if widgets::icon_btn(ui, IconKind::Logs, crate::i18n::t().logs).clicked() {
                     self.show_logs = !self.show_logs;
                 }
 
@@ -2660,7 +2660,7 @@ impl GrokApp {
                     phase = TurnPhase::Generating;
                 }
                 let (label, dot, spinning) = if self.store.is_connecting() || self.pending_connect {
-                    ("连接中", theme::WARNING(), true)
+                    (crate::i18n::t().connecting, theme::WARNING(), true)
                 } else if phase != TurnPhase::Idle {
                     let c = match phase {
                         TurnPhase::Permission => theme::WARNING(),
@@ -2671,9 +2671,9 @@ impl GrokApp {
                     };
                     (phase.label(), c, true)
                 } else if self.store.is_connected() {
-                    ("就绪", theme::SUCCESS(), false)
+                    (crate::i18n::t().ready, theme::SUCCESS(), false)
                 } else {
-                    ("离线", theme::TEXT_3(), false)
+                    (crate::i18n::t().offline, theme::TEXT_3(), false)
                 };
                 status_pill(ui, dot, label, spinning);
 
@@ -2684,24 +2684,26 @@ impl GrokApp {
                 let max = self.resolved_context_max();
                 let win = max
                     .map(format_tokens_one)
-                    .unwrap_or_else(|| "未知".into());
+                    .unwrap_or_else(|| crate::i18n::t().unknown.into());
                 let src = if self.context_max.is_some() && self.context_used.is_some() {
-                    "会话上报"
+                    crate::i18n::t().session_reported
                 } else if crate::models_cache::context_window_for(&self.config.model).is_some() {
                     "models_cache.json"
                 } else {
-                    "未读取到"
+                    crate::i18n::t().not_read
                 };
-                let ctx_tip = format!(
-                    "上下文 {}/{}\n窗口上限：{win}（{src}）\n模型 {} · 强度 {}{}",
-                    format_tokens_one(used),
-                    win,
-                    self.config.model,
+                let extra = self
+                    .context_note
+                    .as_ref()
+                    .map(|n| format!("\n{n}"))
+                    .unwrap_or_default();
+                let ctx_tip = crate::i18n::context_tooltip(
+                    &format_tokens_one(used),
+                    &win,
+                    src,
+                    &self.config.model,
                     effort_label(&self.config.effort),
-                    self.context_note
-                        .as_ref()
-                        .map(|n| format!("\n{n}"))
-                        .unwrap_or_default(),
+                    &extra,
                 );
                 context_meter(ui, used, max, &ctx_tip);
 
@@ -2791,14 +2793,10 @@ impl GrokApp {
             if idle_stuck || long_stuck {
                 ui.add_space(8.0);
                 let msg = if idle_stuck {
-                    format!(
-                        "已 {} 秒无新输出，可能卡住",
-                        idle.map(|d| d.as_secs()).unwrap_or(0)
+                    crate::i18n::stuck_no_output_secs(idle.map(|d| d.as_secs()).unwrap_or(0)
                     )
                 } else {
-                    format!(
-                        "本轮已运行 {} 秒，仍未结束",
-                        total.map(|d| d.as_secs()).unwrap_or(0)
+                    crate::i18n::stuck_running_secs(total.map(|d| d.as_secs()).unwrap_or(0)
                     )
                 };
                 ui.horizontal(|ui| {
@@ -2833,11 +2831,11 @@ impl GrokApp {
                                 );
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     ui.spacing_mut().item_spacing.x = 8.0;
-                                    if primary_button(ui, "强制结束", true).clicked() {
-                                        self.force_unlock_ui("已强制结束 · 可继续发送");
+                                    if primary_button(ui, crate::i18n::t().force_end_stuck, true).clicked() {
+                                        self.force_unlock_ui(crate::i18n::t().status_force_ended_ok);
                                         self.logs.push("用户强制结束卡住的一轮".into());
                                     }
-                                    if ghost_button(ui, "停止").clicked() {
+                                    if ghost_button(ui, crate::i18n::t().stop).clicked() {
                                         self.cancel_prompt(ui.ctx());
                                     }
                                 });
@@ -3112,7 +3110,10 @@ impl GrokApp {
                                     let prev = ui
                                         .add(
                                             egui::Button::new(
-                                                RichText::new("↑ 上一条")
+                                                RichText::new(format!(
+                                                    "↑ {}",
+                                                    crate::i18n::t().jump_prev
+                                                ))
                                                     .size(12.0)
                                                     .color(theme::TEXT_2()),
                                             )
@@ -3120,7 +3121,7 @@ impl GrokApp {
                                             .stroke(Stroke::NONE)
                                             .min_size(egui::vec2(68.0, pill_h - 6.0)),
                                         )
-                                        .on_hover_text("上一条用户消息  ·  Ctrl+↑");
+                                        .on_hover_text(crate::i18n::t().jump_prev_tip);
                                     if prev.hovered() {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
@@ -3130,7 +3131,10 @@ impl GrokApp {
                                     let next = ui
                                         .add(
                                             egui::Button::new(
-                                                RichText::new("↓ 下一条")
+                                                RichText::new(format!(
+                                                    "↓ {}",
+                                                    crate::i18n::t().jump_next
+                                                ))
                                                     .size(12.0)
                                                     .color(theme::TEXT_2()),
                                             )
@@ -3138,7 +3142,7 @@ impl GrokApp {
                                             .stroke(Stroke::NONE)
                                             .min_size(egui::vec2(68.0, pill_h - 6.0)),
                                         )
-                                        .on_hover_text("下一条用户消息  ·  Ctrl+↓");
+                                        .on_hover_text(crate::i18n::t().jump_next_tip);
                                     if next.hovered() {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
@@ -3157,7 +3161,7 @@ impl GrokApp {
                                 let bot = ui
                                     .add(
                                         egui::Button::new(
-                                            RichText::new("底部")
+                                            RichText::new(crate::i18n::t().jump_bottom)
                                                 .size(12.0)
                                                 .color(theme::TEXT_2()),
                                         )
@@ -3165,7 +3169,7 @@ impl GrokApp {
                                         .stroke(Stroke::NONE)
                                         .min_size(egui::vec2(44.0, pill_h - 6.0)),
                                     )
-                                    .on_hover_text("滚到最新");
+                                    .on_hover_text(crate::i18n::t().jump_bottom_tip);
                                 if bot.hovered() {
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
@@ -3193,7 +3197,7 @@ impl GrokApp {
         let mut draft = draft;
         let mut save = false;
         let mut cancel = false;
-        egui::Window::new("重命名会话")
+        egui::Window::new(crate::i18n::t().rename_session)
             .id(egui::Id::new("win_rename_session"))
             .collapsible(false)
             .resizable(false)
@@ -3202,7 +3206,7 @@ impl GrokApp {
             .show(ctx, |ui| {
                 ui.set_min_width(360.0);
                 ui.label(
-                    RichText::new("会话标题")
+                    RichText::new(crate::i18n::t().session_title)
                         .size(12.0)
                         .color(theme::TEXT_3()),
                 );
@@ -3210,7 +3214,7 @@ impl GrokApp {
                 let te = ui.add(
                     TextEdit::singleline(&mut draft)
                         .desired_width(340.0)
-                        .hint_text("输入新标题"),
+                        .hint_text(crate::i18n::t().title_hint),
                 );
                 te.request_focus();
                 if te.lost_focus()
@@ -3221,10 +3225,10 @@ impl GrokApp {
                 }
                 ui.add_space(12.0);
                 ui.horizontal(|ui| {
-                    if primary_button(ui, "保存", !draft.trim().is_empty()).clicked() {
+                    if primary_button(ui, crate::i18n::t().save, !draft.trim().is_empty()).clicked() {
                         save = true;
                     }
-                    if ghost_button(ui, "取消").clicked() {
+                    if ghost_button(ui, crate::i18n::t().cancel).clicked() {
                         cancel = true;
                     }
                 });
@@ -3242,7 +3246,7 @@ impl GrokApp {
                     let _ = rename_session(&sess.summary_path, title);
                     self.rename_draft = None;
                     self.refresh_sessions();
-                    self.status = "已重命名".into();
+                    self.status = crate::i18n::t().status_renamed.into();
                 }
                 Err(e) => {
                     self.error_banner = Some(format!("重命名失败: {e:#}"));
@@ -3263,7 +3267,7 @@ impl GrokApp {
         let screen = ctx.screen_rect();
         let max_w = (screen.width() * 0.90).clamp(320.0, 440.0);
         let max_h = (screen.height() * 0.85).clamp(280.0, 520.0);
-        egui::Window::new("归档")
+        egui::Window::new(crate::i18n::t().archived_sessions)
             .id(egui::Id::new("win_archive_sessions"))
             .open(&mut open)
             .collapsible(false)
@@ -3284,7 +3288,7 @@ impl GrokApp {
             .show(ctx, |ui| {
                 ui.set_max_width(max_w - 8.0);
                 ui.label(
-                    RichText::new("已归档会话不在主列表显示")
+                    RichText::new(crate::i18n::t().archived_hint)
                         .size(12.0)
                         .color(theme::TEXT_3()),
                 );
@@ -3293,7 +3297,7 @@ impl GrokApp {
                     ui.vertical_centered(|ui| {
                         ui.add_space(28.0);
                         ui.label(
-                            RichText::new("暂无归档")
+                            RichText::new(crate::i18n::t().no_archived)
                                 .size(13.0)
                                 .color(theme::TEXT_3()),
                         );
@@ -3309,7 +3313,7 @@ impl GrokApp {
                         .show(ui, |ui| {
                             for s in &rows {
                                 let title = if s.title.trim().is_empty() {
-                                    "无标题"
+                                    crate::i18n::t().untitled
                                 } else {
                                     s.title.as_str()
                                 };
@@ -3330,13 +3334,13 @@ impl GrokApp {
                                     });
                                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                         ui.spacing_mut().item_spacing.x = 6.0;
-                                        if quiet_link(ui, "删除")
-                                            .on_hover_text("从索引移除并删除磁盘会话")
+                                        if quiet_link(ui, crate::i18n::t().delete)
+                                            .on_hover_text(crate::i18n::t().delete_disk_tip)
                                             .clicked()
                                         {
                                             delete_id = Some(s.id.clone());
                                         }
-                                        if soft_action(ui, "恢复").clicked() {
+                                        if soft_action(ui, crate::i18n::t().restore).clicked() {
                                             restore_id = Some(s.id.clone());
                                         }
                                     });
@@ -3350,7 +3354,7 @@ impl GrokApp {
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if soft_action(ui, "关闭").clicked() {
+                        if soft_action(ui, crate::i18n::t().close).clicked() {
                             close_btn = true;
                         }
                     });
@@ -3359,7 +3363,7 @@ impl GrokApp {
         if let Some(id) = restore_id {
             match restore_session(&id) {
                 Ok(()) => {
-                    self.status = "已从归档恢复".into();
+                    self.status = crate::i18n::t().status_restored.into();
                     self.archived_sessions = list_archived_sessions();
                     self.local_sessions = list_active_sessions();
                 }
@@ -3369,7 +3373,7 @@ impl GrokApp {
         if let Some(id) = delete_id {
             match delete_from_app(&id, true) {
                 Ok(()) => {
-                    self.status = "已删除归档会话".into();
+                    self.status = crate::i18n::t().status_deleted_archive.into();
                     self.archived_sessions = list_archived_sessions();
                     if self.store.session_id() == Some(id.as_str()) {
                         self.timeline.clear();
@@ -3410,7 +3414,7 @@ impl GrokApp {
         let screen = ctx.screen_rect();
         let max_w = (screen.width() * 0.90).clamp(320.0, 440.0);
         let max_h = (screen.height() * 0.85).clamp(280.0, 520.0);
-        egui::Window::new("导入会话")
+        egui::Window::new(crate::i18n::t().import_sessions)
             .id(egui::Id::new("win_import_cli"))
             .open(&mut open)
             .collapsible(false)
@@ -3432,27 +3436,30 @@ impl GrokApp {
                 ui.set_max_width(max_w - 8.0);
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new(format!("CLI 可导入 · {total}"))
+                        RichText::new(format!(
+                            "{} · {total}",
+                            crate::i18n::t().import_sessions
+                        ))
                             .size(12.0)
                             .color(theme::TEXT_3()),
                     );
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if quiet_link(ui, "刷新").clicked() {
+                        if quiet_link(ui, crate::i18n::t().refresh).clicked() {
                             do_refresh = true;
                         }
                     });
                 });
                 ui.add_space(8.0);
-                let _ = search_field(ui, "import_search", &mut self.import_filter, "筛选…");
+                let _ = search_field(ui, "import_search", &mut self.import_filter, crate::i18n::t().filter_hint);
                 ui.add_space(10.0);
                 if rows.is_empty() {
                     ui.vertical_centered(|ui| {
                         ui.add_space(28.0);
                         ui.label(
                             RichText::new(if total == 0 {
-                                "没有可导入的会话"
+                                crate::i18n::t().no_importable
                             } else {
-                                "无匹配结果"
+                                crate::i18n::t().no_match
                             })
                             .size(13.0)
                             .color(theme::TEXT_3()),
@@ -3499,7 +3506,7 @@ impl GrokApp {
                                     let title = if s.title.trim().is_empty()
                                         || s.title == "(无标题)"
                                     {
-                                        "无标题会话"
+                                        crate::i18n::t().untitled_session
                                     } else {
                                         s.title.as_str()
                                     };
@@ -3526,7 +3533,7 @@ impl GrokApp {
                                         ui.with_layout(
                                             Layout::right_to_left(Align::Center),
                                             |ui| {
-                                                if soft_action(ui, "添加").clicked() {
+                                                if soft_action(ui, crate::i18n::t().add).clicked() {
                                                     import_one = Some(s.clone());
                                                 }
                                             },
@@ -3542,7 +3549,7 @@ impl GrokApp {
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if soft_action(ui, "关闭").clicked() {
+                        if soft_action(ui, crate::i18n::t().close).clicked() {
                             close_btn = true;
                         }
                     });
@@ -3554,7 +3561,7 @@ impl GrokApp {
         if let Some(s) = import_one {
             match import_cli_session(&s) {
                 Ok(()) => {
-                    self.status = format!("已添加 · {}", s.title);
+                    self.status = crate::i18n::imported_status(&s.title);
                     self.import_candidates = list_cli_import_candidates(120);
                     self.local_sessions = list_active_sessions();
                 }
@@ -3631,7 +3638,7 @@ impl GrokApp {
 
         let screen = ctx.screen_rect();
         let max_h = screen.height() * 0.90;
-        let win = egui::Window::new("新建对话")
+        let win = egui::Window::new(crate::i18n::t().new_chat_title)
             .id(egui::Id::new("win_new_chat"))
             .order(egui::Order::Foreground)
             .collapsible(false)
@@ -3664,13 +3671,13 @@ impl GrokApp {
                             ui.add_space(10.0);
                             ui.vertical(|ui| {
                                 ui.label(
-                                    RichText::new("新建对话")
+                                    RichText::new(crate::i18n::t().new_chat_title)
                                         .size(16.0)
                                         .strong()
                                         .color(theme::TEXT()),
                                 );
                                 ui.label(
-                                    RichText::new("选择工作区，Agent 将在此目录读写与执行工具")
+                                    RichText::new(crate::i18n::t().new_chat_body)
                                         .size(12.0)
                                         .color(theme::TEXT_3()),
                                 );
@@ -3686,24 +3693,24 @@ impl GrokApp {
 
                         // Runtime chips
                         ui.label(
-                            RichText::new("本次将使用")
+                            RichText::new(crate::i18n::t().will_use)
                                 .size(11.5)
                                 .color(theme::TEXT_3()),
                         );
                         ui.add_space(6.0);
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 8.0;
-                            chip_label(ui, &format!("模型  {model}"));
-                            chip_label(ui, &format!("强度  {effort}"));
+                            chip_label(ui, &crate::i18n::model_chip(&model));
+                            chip_label(ui, &crate::i18n::effort_chip_full(&effort));
                             if self.config.always_approve {
-                                chip_label(ui, "自动批准");
+                                chip_label(ui, crate::i18n::t().always_approve_chip);
                             }
                         });
                         ui.add_space(16.0);
 
                         // Workspace field
                         ui.label(
-                            RichText::new("工作目录")
+                            RichText::new(crate::i18n::t().working_dir)
                                 .size(13.0)
                                 .strong()
                                 .color(theme::TEXT()),
@@ -3737,7 +3744,7 @@ impl GrokApp {
                                             .min_size(egui::vec2(36.0, 28.0))
                                             .corner_radius(8),
                                         )
-                                        .on_hover_text("浏览文件夹")
+                                        .on_hover_text(crate::i18n::t().pick_folder)
                                         .clicked()
                                     {
                                         pick_dir = true;
@@ -3751,7 +3758,7 @@ impl GrokApp {
                             && std::path::Path::new(cwd.trim()).is_dir();
                         if cwd.trim().is_empty() {
                             ui.label(
-                                RichText::new("请填写或选择一个项目目录")
+                                RichText::new(crate::i18n::t().need_project_dir)
                                     .size(11.5)
                                     .color(theme::TEXT_3()),
                             );
@@ -3767,7 +3774,7 @@ impl GrokApp {
                             );
                         } else {
                             ui.label(
-                                RichText::new("目录不存在，请检查路径")
+                                RichText::new(crate::i18n::t().dir_missing_check)
                                     .size(11.5)
                                     .color(theme::DANGER()),
                             );
@@ -3776,14 +3783,14 @@ impl GrokApp {
                         // Quick picks
                         ui.add_space(14.0);
                         ui.label(
-                            RichText::new("快捷选择")
+                            RichText::new(crate::i18n::t().quick_picks)
                                 .size(11.5)
                                 .color(theme::TEXT_3()),
                         );
                         ui.add_space(6.0);
                         ui.horizontal_wrapped(|ui| {
                             ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
-                            if quick_chip(ui, "当前目录").clicked() {
+                            if quick_chip(ui, crate::i18n::t().current_dir).clicked() {
                                 quick_path = Some(current_cwd.clone());
                             }
                             for (name, path) in &recent {
@@ -3799,11 +3806,11 @@ impl GrokApp {
                         ui.add_space(20.0);
                         // Actions
                         ui.horizontal(|ui| {
-                            if ghost_button(ui, "取消").clicked() {
+                            if ghost_button(ui, crate::i18n::t().cancel).clicked() {
                                 cancel = true;
                             }
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                if primary_button(ui, "开始对话", path_ok).clicked() {
+                                if primary_button(ui, crate::i18n::t().start_chat, path_ok).clicked() {
                                     confirm = true;
                                 }
                             });
@@ -3863,7 +3870,7 @@ impl GrokApp {
         let mut open = true;
         let mut close_btn = false;
         let tex = self.ensure_chat_image_tex(ctx, &img);
-        egui::Window::new(format!("预览 · {}", img.label))
+        egui::Window::new(format!("{} · {}", crate::i18n::t().preview, img.label))
             .id(egui::Id::new(("img_preview", img.id.as_str())))
             .open(&mut open)
             .collapsible(false)
@@ -3883,7 +3890,7 @@ impl GrokApp {
                         ui.add(egui::Image::new((tex.id(), size)).corner_radius(6.0));
                     });
                 } else {
-                    ui.label("无法加载预览");
+                    ui.label(crate::i18n::t().preview_fail);
                 }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
@@ -3893,7 +3900,7 @@ impl GrokApp {
                             .color(theme::TEXT_3()),
                     );
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ghost_button(ui, "关闭").clicked() {
+                        if ghost_button(ui, crate::i18n::t().close).clicked() {
                             close_btn = true;
                         }
                     });
@@ -3925,13 +3932,12 @@ impl GrokApp {
             SlashAction::Status => {
                 self.input.clear();
                 let ctx_l = self.context_label();
-                let msg = format!(
-                    "状态 · {} · 模型 {} · 强度 {} · 上下文 {} · PID {:?}",
+                let msg = crate::i18n::status_line(
                     self.store.host_phase().label(),
-                    self.config.model,
+                    &self.config.model,
                     effort_label(&self.config.effort),
-                    ctx_l,
-                    self.agent_pid
+                    &ctx_l,
+                    &format!("{:?}", self.agent_pid),
                 );
                 self.status = msg.clone();
                 self.timeline.push(TimelineItem::Status {
@@ -3945,9 +3951,9 @@ impl GrokApp {
                 self.config.always_approve = !self.config.always_approve;
                 let _ = self.config.save();
                 self.status = if self.config.always_approve {
-                    "已开启自动批准工具".into()
+                    crate::i18n::t().yolo_on.into()
                 } else {
-                    "已关闭自动批准工具".into()
+                    crate::i18n::t().yolo_off.into()
                 };
                 self.timeline.push(TimelineItem::Status {
                     id: Uuid::new_v4().to_string(),
@@ -3960,7 +3966,7 @@ impl GrokApp {
                 self.show_all_history = false;
                 self.store.set_open_assistant(None);
                 self.store.set_open_thought(None);
-                self.status = "已清空当前视图".into();
+                self.status = crate::i18n::t().status_cleared_view.into();
             }
             SlashAction::CompactHint => {
                 // Send as agent-facing slash so CLI can handle if supported
@@ -4046,7 +4052,7 @@ impl GrokApp {
 
                 if hovering_files {
                     ui.label(
-                        RichText::new("松开以添加图片")
+                        RichText::new(crate::i18n::t().drop_to_attach)
                             .size(12.5)
                             .color(theme::ACCENT()),
                     );
@@ -4117,11 +4123,11 @@ impl GrokApp {
                 }
 
                 let hint = if !self.store.is_connected() {
-                    "连接 Agent 后开始对话"
+                    crate::i18n::t().input_connect_first
                 } else if pending.is_empty() {
-                    "输入消息…"
+                    crate::i18n::t().input_placeholder
                 } else {
-                    "补充说明（可选）"
+                    crate::i18n::t().input_optional_note
                 };
 
                 let te = TextEdit::multiline(&mut self.input)
@@ -4178,25 +4184,25 @@ impl GrokApp {
                     ui.spacing_mut().item_spacing.x = theme::SPACE_SM;
                     ui.set_min_height(theme::BTN_H_LG);
 
-                    let attach = widgets::icon_btn(ui, IconKind::Paperclip, "附件 · 拖放 · Ctrl+V");
+                    let attach = widgets::icon_btn(ui, IconKind::Paperclip, crate::i18n::t().attach_tip);
                     if attach.clicked() {
                         self.pick_image_files();
                     }
                     ui.label(
-                        RichText::new("附件")
+                        RichText::new(crate::i18n::t().attach)
                             .size(12.5)
                             .color(theme::TEXT_3()),
                     );
                     if self.clipboard_image_ready
-                        && ghost_button(ui, "粘贴图").clicked()
+                        && ghost_button(ui, crate::i18n::t().paste_image).clicked()
                     {
                         self.paste_probe_frames = 10;
-                        self.status = "读取剪贴板…".into();
+                        self.status = crate::i18n::t().status_reading_clipboard.into();
                         ctx.request_repaint();
                     }
                     if !pending.is_empty() {
                         ui.label(
-                            RichText::new(format!("{} 张", pending.len()))
+                            RichText::new(format!("{}", pending.len()))
                                 .size(12.0)
                                 .color(theme::TEXT_3()),
                         );
@@ -4206,7 +4212,7 @@ impl GrokApp {
                         // Circular paper-plane send (mock style)
                         let send_size = 36.0;
                         if self.store.busy() {
-                            if primary_button(ui, "停止", true).clicked() {
+                            if primary_button(ui, crate::i18n::t().stop, true).clicked() {
                                 self.cancel_prompt(ctx);
                             }
                         } else {
@@ -4239,16 +4245,12 @@ impl GrokApp {
                             if r.clicked() && can_send {
                                 self.send_prompt(ctx);
                             }
-                            r.on_hover_text("发送 (Enter)");
+                            r.on_hover_text(crate::i18n::t().send_tip);
                         }
                     });
                 });
                 ui.add_space(4.0);
-                let hint_keys = if self.config.enter_to_send {
-                    "Enter 发送  ·  Shift+Enter 换行  ·  Ctrl+↑ 上一条  ·  Ctrl+V 贴图"
-                } else {
-                    "Ctrl+Enter 发送  ·  Ctrl+↑/↓ 用户消息  ·  Ctrl+V 贴图"
-                };
+                let hint_keys = crate::i18n::t().composer_hint;
                 ui.label(
                     RichText::new(hint_keys)
                         .size(11.0)
@@ -4262,13 +4264,13 @@ impl GrokApp {
             return;
         }
         let mut open = self.show_logs;
-        egui::Window::new("运行日志")
+        egui::Window::new(crate::i18n::t().runtime_logs)
             .id(egui::Id::new("win_run_logs"))
             .open(&mut open)
             .default_size([580.0, 380.0])
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    if ghost_button(ui, "清空").clicked() {
+                    if ghost_button(ui, crate::i18n::t().clear_logs).clicked() {
                         self.logs.clear();
                     }
                 });
@@ -4299,7 +4301,7 @@ impl GrokApp {
         let tool_id = pending.tool_call_id.clone();
         let options = pending.options.clone();
 
-        egui::Window::new("工具权限")
+        egui::Window::new(crate::i18n::t().tool_permission)
             .id(egui::Id::new("win_tool_permission"))
             .collapsible(false)
             .resizable(false)
@@ -4325,10 +4327,10 @@ impl GrokApp {
                         }
                     }
                     if options.is_empty() {
-                        if primary_button(ui, "允许一次", true).clicked() {
+                        if primary_button(ui, crate::i18n::t().allow_once, true).clicked() {
                             self.respond_permission("allow-once".into(), ctx);
                         }
-                        if ghost_button(ui, "拒绝").clicked() {
+                        if ghost_button(ui, crate::i18n::t().deny).clicked() {
                             self.respond_permission("reject-once".into(), ctx);
                         }
                     }

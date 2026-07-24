@@ -72,23 +72,41 @@ pub const SLASH_ITEMS: &[SlashItem] = &[
     },
     SlashItem {
         name: "plan",
-        title: "计划模式",
-        desc: "插入 /plan 提示",
+        title: "Plan mode",
+        desc: "Insert /plan hint",
         action: SlashAction::InsertPrompt,
     },
     SlashItem {
         name: "goal",
-        title: "目标模式",
-        desc: "插入 /goal 提示",
+        title: "Goal mode",
+        desc: "Insert /goal hint",
         action: SlashAction::InsertPrompt,
     },
     SlashItem {
         name: "help",
-        title: "帮助",
-        desc: "列出可用斜杠指令",
+        title: "Help",
+        desc: "List slash commands",
         action: SlashAction::InsertPrompt,
     },
 ];
+
+/// Localized title/description for a slash item (command `name` stays English).
+pub fn slash_labels(item: &SlashItem) -> (&'static str, &'static str) {
+    let s = crate::i18n::t();
+    match item.name {
+        "new" => (s.slash_new_title, s.slash_new_desc),
+        "settings" => (s.slash_settings_title, s.slash_settings_desc),
+        "status" => (s.slash_status_title, s.slash_status_desc),
+        "logs" => (s.slash_logs_title, s.slash_logs_desc),
+        "yolo" => (s.slash_yolo_title, s.slash_yolo_desc),
+        "clear" => (s.slash_clear_title, s.slash_clear_desc),
+        "compact" => (s.slash_compact_title, s.slash_compact_desc),
+        "plan" => (s.slash_plan_title, s.slash_plan_desc),
+        "goal" => (s.slash_goal_title, s.slash_goal_desc),
+        "help" => (s.slash_help_title, s.slash_help_desc),
+        _ => (item.title, item.desc),
+    }
+}
 
 /// Parse filter from composer text when it starts with `/`.
 /// Returns (filter fragment without leading slash, true if palette should show).
@@ -162,7 +180,7 @@ pub fn draw_palette(
             ui.set_width(w);
             ui.label(
                 RichText::new(if filter.is_empty() {
-                    "指令".to_string()
+                    crate::i18n::t().slash_commands.to_string()
                 } else {
                     format!("/{filter}")
                 })
@@ -205,10 +223,11 @@ pub fn draw_palette(
                             theme::TEXT()
                         },
                     );
+                    let (title, desc) = slash_labels(item);
                     ui.painter().text(
                         egui::pos2(rect.left() + 10.0, rect.center().y + 9.0),
                         egui::Align2::LEFT_CENTER,
-                        format!("{} — {}", item.title, item.desc),
+                        format!("{title} — {desc}"),
                         egui::FontId::proportional(11.0),
                         theme::TEXT_3(),
                     );
@@ -224,8 +243,12 @@ pub fn draw_palette(
 
             ui.add_space(2.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let hint = match crate::i18n::current_locale() {
+                    crate::i18n::Locale::Zh => "↑↓ 选择  ·  Enter 确认  ·  Esc 关闭",
+                    crate::i18n::Locale::En => "↑↓ select  ·  Enter confirm  ·  Esc close",
+                };
                 ui.label(
-                    RichText::new("↑↓ 选择  ·  Enter 确认  ·  Esc 关闭")
+                    RichText::new(hint)
                         .size(10.5)
                         .color(theme::TEXT_3()),
                 );
