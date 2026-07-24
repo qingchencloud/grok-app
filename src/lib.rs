@@ -13,6 +13,7 @@ pub mod session_fsm;
 pub mod session_store;
 pub mod stream;
 pub mod ui;
+pub mod update;
 pub mod win_chrome;
 
 pub use app::GrokApp;

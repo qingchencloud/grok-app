@@ -41,6 +41,10 @@ pub struct AppConfig {
     pub user_display_name: String,
     /// Optional local image path for the user avatar (png/jpg/…). Empty = letter badge.
     pub user_avatar_path: String,
+    /// Check GitHub Releases for updates on startup.
+    pub check_updates_on_startup: bool,
+    /// Tag the user dismissed with "Later" (e.g. `v0.1.1`). Corner badge still shows.
+    pub update_dismissed_tag: String,
 }
 
 impl Default for AppConfig {
@@ -67,6 +71,8 @@ impl Default for AppConfig {
             enter_to_send: true,
             user_display_name: String::new(),
             user_avatar_path: String::new(),
+            check_updates_on_startup: true,
+            update_dismissed_tag: String::new(),
         }
     }
 }

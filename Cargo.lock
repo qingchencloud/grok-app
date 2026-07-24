@@ -1610,7 +1610,7 @@ dependencies = [
 
 [[package]]
 name = "grok_app"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1632,6 +1632,7 @@ dependencies = [
  "toml_edit 0.22.27",
  "tracing",
  "tracing-subscriber",
+ "ureq",
  "uuid",
  "which",
  "windows-sys 0.59.0",
@@ -3944,6 +3945,8 @@ dependencies = [
  "once_cell",
  "rustls",
  "rustls-pki-types",
+ "serde",
+ "serde_json",
  "url",
  "webpki-roots 0.26.11",
 ]

@@ -1,6 +1,6 @@
 [package]
 name = "grok_app"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Grok App / Grok Desktop — unofficial native GUI over the official Grok Build CLI (ACP)"
 license = "MIT"
@@ -38,6 +38,8 @@ toml_edit = "0.22"
 # arboard is pulled in by eframe/egui-winit for text paste only.
 base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+# Update check (GitHub Releases API)
+ureq = { version = "2", default-features = false, features = ["tls", "json"] }
 
 [target.'cfg(windows)'.dependencies]
 clipboard-win = { version = "5.4", features = ["std"] }

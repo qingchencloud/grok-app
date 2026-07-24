@@ -3,6 +3,7 @@
 use crate::config::{effort_label, normalize_effort, resolve_grok_binary, AppConfig, MODELS};
 use crate::local::install::{probe_status, probe_status_fast, CliInstallStatus, INSTALL_URL};
 use crate::local::{CliTomlConfig, LocalSession};
+use crate::update::UpdateUiState;
 use crate::ui::icons::{self, IconKind};
 use crate::ui::theme;
 use crate::ui::widgets::{ghost_button, primary_button};
@@ -89,6 +90,8 @@ pub struct SettingsState {
     pub user_display_name: String,
     /// Local image path for chat avatar.
     pub user_avatar_path: String,
+    /// Check GitHub Releases for desktop app updates on startup.
+    pub check_updates_on_startup: bool,
 }
 
 impl SettingsState {
@@ -118,6 +121,7 @@ impl SettingsState {
             extra_args: app.extra_args_line(),
             user_display_name: app.user_display_name.clone(),
             user_avatar_path: app.user_avatar_path.clone(),
+            check_updates_on_startup: app.check_updates_on_startup,
         };
         if s.model.is_empty() && !s.cli_toml.default_model.is_empty() {
             s.model = s.cli_toml.default_model.clone();
@@ -142,6 +146,7 @@ impl SettingsState {
         self.extra_args = app.extra_args_line();
         self.user_display_name = app.user_display_name.clone();
         self.user_avatar_path = app.user_avatar_path.clone();
+        self.check_updates_on_startup = app.check_updates_on_startup;
     }
 
     pub fn refresh_cli(&mut self) {
@@ -160,12 +165,17 @@ pub struct SettingsActions {
     pub open_login: bool,
     pub open_sessions_focus: bool,
     pub apply_theme: bool,
+    /// Trigger desktop app update check (GitHub Releases).
+    pub check_updates: bool,
+    /// Open the update / changelog modal.
+    pub open_update_modal: bool,
 }
 
 pub fn draw_settings(
     ctx: &egui::Context,
     state: &mut SettingsState,
     sessions: &[LocalSession],
+    update: &UpdateUiState,
 ) -> SettingsActions {
     let mut actions = SettingsActions {
         close: false,
@@ -176,6 +186,8 @@ pub fn draw_settings(
         open_login: false,
         open_sessions_focus: false,
         apply_theme: false,
+        check_updates: false,
+        open_update_modal: false,
     };
 
     let mut open = state.open;
@@ -413,7 +425,9 @@ pub fn draw_settings(
                                             SettingsTab::Advanced => {
                                                 tab_advanced(ui, state, sessions, &mut actions)
                                             }
-                                            SettingsTab::About => tab_about(ui),
+                                            SettingsTab::About => {
+                                                tab_about(ui, state, update, &mut actions)
+                                            }
                                         }
                                         ui.add_space(24.0);
                                     });
@@ -1158,7 +1172,12 @@ fn tab_advanced(
     footer_save(ui, actions, false);
 }
 
-fn tab_about(ui: &mut Ui) {
+fn tab_about(
+    ui: &mut Ui,
+    state: &mut SettingsState,
+    update: &UpdateUiState,
+    actions: &mut SettingsActions,
+) {
     let s = crate::i18n::t();
     section(ui, s.app_name, "", |ui| {
         ui.horizontal(|ui| {
@@ -1192,10 +1211,83 @@ fn tab_about(ui: &mut Ui) {
         );
     });
 
+    section(ui, s.update_section, s.update_check, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(format!("{}  v{}", s.update_current, update.current))
+                    .size(13.0)
+                    .color(theme::TEXT_2()),
+            );
+            if let Some(latest) = &update.latest {
+                ui.label(RichText::new("→").size(13.0).color(theme::TEXT_3()));
+                ui.label(
+                    RichText::new(format!("{}  {}", s.update_latest, latest.tag))
+                        .size(13.0)
+                        .color(if update.update_available {
+                            theme::ACCENT()
+                        } else {
+                            theme::TEXT_2()
+                        }),
+                );
+            }
+        });
+        ui.add_space(8.0);
+        if update.checking {
+            ui.label(
+                RichText::new(s.update_checking)
+                    .size(13.0)
+                    .color(theme::TEXT_3()),
+            );
+        } else if let Some(err) = &update.error {
+            ui.label(
+                RichText::new(format!("{}: {err}", s.update_failed))
+                    .size(12.5)
+                    .color(theme::DANGER()),
+            );
+        } else if update.update_available {
+            ui.label(
+                RichText::new(s.update_available)
+                    .size(13.0)
+                    .strong()
+                    .color(theme::ACCENT()),
+            );
+        } else if update.last_checked.is_some() {
+            ui.label(
+                RichText::new(s.update_up_to_date)
+                    .size(13.0)
+                    .color(theme::SUCCESS()),
+            );
+        }
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            if primary_button(ui, s.update_check, !update.checking).clicked() {
+                actions.check_updates = true;
+            }
+            if update.update_available && ghost_button(ui, s.update_view).clicked() {
+                actions.open_update_modal = true;
+            }
+            if ghost_button(ui, s.update_open_releases).clicked() {
+                crate::update::open_url(crate::update::RELEASES_URL);
+            }
+        });
+        ui.add_space(10.0);
+        ui.checkbox(
+            &mut state.check_updates_on_startup,
+            RichText::new(s.update_check_on_startup).size(13.0),
+        );
+    });
+
     section(ui, s.links, "", |ui| {
         ui.hyperlink_to(s.link_xai_cli, "https://x.ai/cli");
         ui.hyperlink_to(s.link_grok_build, "https://github.com/xai-org/grok-build");
-        ui.hyperlink_to(s.ref_client, "https://github.com/RongleCat/grok-app");
+        ui.hyperlink_to(
+            s.ref_client,
+            "https://github.com/qingchencloud/grok-app",
+        );
+        ui.hyperlink_to(
+            s.update_open_releases,
+            crate::update::RELEASES_URL,
+        );
     });
 
     section(ui, s.capabilities, "", |ui| {

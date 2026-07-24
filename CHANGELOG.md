@@ -2,6 +2,19 @@
 
 All notable changes to **Grok Desktop** (`qingchencloud/grok-app`) are documented here.
 
+## [0.1.1] — 2026-07-25
+
+### Added
+- In-app update checks via GitHub Releases (`qingchencloud/grok-app`)
+- Formal changelog modal: download / later; corner badge stays after “Later”
+- Bottom-left update reminder when a newer build is available
+- Settings → About: check updates, open releases, startup check toggle
+- OS title bar shows app version (`Grok  vX.Y.Z`)
+
+### Notes
+- Primary Windows asset: `GrokDesktop-Setup-<ver>-windows-x64.exe`
+- Demo override for local UI preview: `GROK_DEMO_UPDATE=1` (not used in release builds)
+
 ## [0.1.0] — 2026-07-24
 
 ### Added

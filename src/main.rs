@@ -110,10 +110,13 @@ fn main() {
     // App icon from official Grok mark (reference/grok-app icons).
     let app_icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png")).ok();
 
+    // Version lives in the OS title bar (system chrome), not the in-app topbar.
+    let window_title = format!("Grok  v{}", env!("CARGO_PKG_VERSION"));
+
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size([win_w, win_h])
         .with_min_inner_size([880.0, 640.0])
-        .with_title("Grok")
+        .with_title(window_title)
         .with_active(true)
         .with_visible(true)
         .with_decorations(true)

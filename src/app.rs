@@ -13,6 +13,7 @@ use crate::local::{
 };
 use crate::session_store::{PendingPermission, SessionStore, TurnPhase};
 use crate::stream::SmoothStream;
+use crate::update::{self, UpdateCheckResult, UpdateUiState};
 use crate::ui::chat_view;
 use crate::ui::icons::{self, IconKind};
 use crate::ui::settings::{draw_settings, SettingsState, SettingsTab};
@@ -135,6 +136,12 @@ pub struct GrokApp {
     show_all_history: bool,
     /// Slash palette selection index.
     slash_selected: usize,
+    /// GitHub Releases update check.
+    update: UpdateUiState,
+    update_rx: Option<std_mpsc::Receiver<UpdateCheckResult>>,
+    update_tx: std_mpsc::Sender<UpdateCheckResult>,
+    /// Startup update check deferred a few frames.
+    pending_update_check: bool,
 }
 
 struct NewChatDraft {
@@ -240,7 +247,18 @@ impl GrokApp {
             last_session_scan: None,
             show_all_history: false,
             slash_selected: 0,
+            update: UpdateUiState::new(),
+            update_rx: None,
+            update_tx: {
+                let (tx, _rx) = update::channel();
+                tx
+            },
+            pending_update_check: false,
         };
+
+        let (utx, urx) = update::channel();
+        app.update_tx = utx;
+        app.update_rx = Some(urx);
 
         // Seed context window from ~/.grok/models_cache.json (not a hard-coded default).
         app.refresh_context_from_catalog();
@@ -249,6 +267,7 @@ impl GrokApp {
         // window creation and look like a crash on some machines.
         let cli_ok = resolve_grok_binary(&app.config.grok_path).is_ok();
         app.pending_connect = cli_ok && app.config.auto_connect;
+        app.pending_update_check = app.config.check_updates_on_startup;
         if !cli_ok {
             app.settings.open = true;
             app.settings.tab = SettingsTab::Cli;
@@ -261,6 +280,53 @@ impl GrokApp {
 
         app.frame_count = 0;
         app
+    }
+
+    fn start_update_check(&mut self, ctx: &egui::Context) {
+        if self.update.checking {
+            return;
+        }
+        self.update.checking = true;
+        self.update.error = None;
+        update::spawn_check(self.update_tx.clone(), self.update.current.clone());
+        ctx.request_repaint_after(std::time::Duration::from_millis(200));
+    }
+
+    fn poll_update_check(&mut self, ctx: &egui::Context) {
+        let Some(rx) = self.update_rx.as_ref() else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(res) => {
+                let dismissed = self.config.update_dismissed_tag.clone();
+                self.update.apply_result(res, &dismissed);
+                ctx.request_repaint();
+            }
+            Err(std_mpsc::TryRecvError::Empty) => {}
+            Err(std_mpsc::TryRecvError::Disconnected) => {}
+        }
+    }
+
+    fn dismiss_update_modal(&mut self) {
+        self.update.modal_open = false;
+        if let Some(tag) = self.update.latest.as_ref().map(|r| r.tag.clone()) {
+            self.config.update_dismissed_tag = tag;
+            let _ = self.config.save();
+        }
+    }
+
+    fn open_update_download(&mut self) {
+        let url = self
+            .update
+            .selected_release()
+            .and_then(|r| r.setup_url.clone().or_else(|| r.portable_url.clone()))
+            .or_else(|| {
+                self.update
+                    .selected_release()
+                    .map(|r| r.html_url.clone())
+            })
+            .unwrap_or_else(|| update::LATEST_URL.to_string());
+        update::open_url(&url);
     }
 
     fn refresh_sessions(&mut self) {
@@ -463,7 +529,7 @@ impl GrokApp {
         }
         // Keep drafts in sync when opening
         let sessions = self.local_sessions.clone();
-        let actions = draw_settings(ctx, &mut self.settings, &sessions);
+        let actions = draw_settings(ctx, &mut self.settings, &sessions, &self.update);
 
         if actions.start_install {
             self.start_cli_install();
@@ -484,6 +550,15 @@ impl GrokApp {
             } else {
                 crate::i18n::t().status_switched_light.into()
             });
+        }
+        if actions.check_updates {
+            self.start_update_check(ctx);
+        }
+        if actions.open_update_modal {
+            self.update.modal_open = true;
+            if let Some(tag) = self.update.latest.as_ref().map(|r| r.tag.clone()) {
+                self.update.selected_tag = Some(tag);
+            }
         }
         if actions.save_config {
             self.apply_settings_to_config();
@@ -546,6 +621,7 @@ impl GrokApp {
         self.config.set_extra_args_line(&s.extra_args);
         self.config.user_display_name = AppConfig::sanitize_display_name(&s.user_display_name);
         self.config.user_avatar_path = s.user_avatar_path.trim().to_string();
+        self.config.check_updates_on_startup = s.check_updates_on_startup;
         // Keep settings fields in sync with sanitized values
         self.settings.user_display_name = self.config.user_display_name.clone();
         self.settings.user_avatar_path = self.config.user_avatar_path.clone();
@@ -4298,6 +4374,431 @@ impl GrokApp {
         self.show_logs = open;
     }
 
+    /// Formal update modal: changelog + download / later.
+    /// "Later" closes the modal but keeps the bottom-left badge.
+    fn ui_update_modal(&mut self, ctx: &egui::Context) {
+        if !self.update.modal_open {
+            return;
+        }
+
+        let screen = ctx.screen_rect();
+        // Scrim
+        egui::Area::new(egui::Id::new("update_scrim"))
+            .order(egui::Order::Middle)
+            .fixed_pos(screen.min)
+            .interactable(true)
+            .sense(egui::Sense::click())
+            .show(ctx, |ui| {
+                ui.painter().rect_filled(screen, 0.0, theme::modal_scrim());
+                let resp = ui.allocate_rect(screen, egui::Sense::click());
+                if resp.clicked() {
+                    // Click outside = Later (keep badge)
+                    ui.ctx().memory_mut(|m| {
+                        m.data
+                            .insert_temp(egui::Id::new("update_scrim_clicked"), true);
+                    });
+                }
+            });
+
+        if ctx.memory(|m| {
+            m.data
+                .get_temp::<bool>(egui::Id::new("update_scrim_clicked"))
+                .unwrap_or(false)
+        }) {
+            ctx.memory_mut(|m| {
+                m.data
+                    .remove::<bool>(egui::Id::new("update_scrim_clicked"));
+            });
+            self.dismiss_update_modal();
+            return;
+        }
+
+        let s = crate::i18n::t();
+        let latest_tag = self
+            .update
+            .latest
+            .as_ref()
+            .map(|r| r.tag.clone())
+            .unwrap_or_default();
+        let current = self.update.current.clone();
+        let body = self
+            .update
+            .selected_release()
+            .map(|r| {
+                if r.body.trim().is_empty() {
+                    r.name.clone()
+                } else {
+                    r.body.clone()
+                }
+            })
+            .unwrap_or_default();
+        let release_name = self
+            .update
+            .selected_release()
+            .map(|r| {
+                if r.name.trim().is_empty() {
+                    r.tag.clone()
+                } else {
+                    r.name.clone()
+                }
+            })
+            .unwrap_or_else(|| latest_tag.clone());
+        let history: Vec<(String, String)> = self
+            .update
+            .history
+            .iter()
+            .map(|r| (r.tag.clone(), r.name.clone()))
+            .collect();
+        let selected = self
+            .update
+            .selected_tag
+            .clone()
+            .unwrap_or_else(|| latest_tag.clone());
+
+        let mut open = true;
+        let mut do_later = false;
+        let mut do_download = false;
+        let mut do_releases = false;
+        let mut pick_tag: Option<String> = None;
+
+        egui::Window::new(s.update_modal_title)
+            .id(egui::Id::new("win_update"))
+            .open(&mut open)
+            .order(egui::Order::Foreground)
+            .collapsible(false)
+            .resizable(true)
+            .default_size([520.0, 480.0])
+            .min_size([400.0, 320.0])
+            .max_size([720.0, screen.height() * 0.88])
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .frame(
+                Frame::NONE
+                    .fill(theme::modal_fill())
+                    .stroke(theme::modal_stroke())
+                    .inner_margin(Margin::symmetric(22, 18)),
+            )
+            .show(ctx, |ui| {
+                // Version strip
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 10.0;
+                    Frame::NONE
+                        .fill(if theme::is_dark() {
+                            Color32::from_rgba_unmultiplied(255, 255, 255, 10)
+                        } else {
+                            Color32::from_rgb(0xF0, 0xF0, 0xF3)
+                        })
+                        .corner_radius(theme::RADIUS_SM)
+                        .inner_margin(Margin::symmetric(10, 6))
+                        .show(ui, |ui| {
+                            ui.label(
+                                RichText::new(format!("{}  v{current}", s.update_current))
+                                    .size(12.5)
+                                    .color(theme::TEXT_2()),
+                            );
+                        });
+                    ui.label(RichText::new("→").size(14.0).color(theme::TEXT_3()));
+                    Frame::NONE
+                        .fill(Color32::from_rgba_unmultiplied(
+                            theme::ACCENT().r(),
+                            theme::ACCENT().g(),
+                            theme::ACCENT().b(),
+                            if theme::is_dark() { 36 } else { 28 },
+                        ))
+                        .corner_radius(theme::RADIUS_SM)
+                        .inner_margin(Margin::symmetric(10, 6))
+                        .show(ui, |ui| {
+                            ui.label(
+                                RichText::new(format!("{}  {latest_tag}", s.update_latest))
+                                    .size(12.5)
+                                    .strong()
+                                    .color(theme::ACCENT()),
+                            );
+                        });
+                });
+
+                ui.add_space(12.0);
+                ui.label(
+                    RichText::new(&release_name)
+                        .size(15.0)
+                        .strong()
+                        .color(theme::TEXT()),
+                );
+
+                // History picker when multiple releases
+                if history.len() > 1 {
+                    ui.add_space(6.0);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        for (tag, _name) in &history {
+                            let active = tag == &selected;
+                            let resp = ui.add(
+                                egui::Button::new(
+                                    RichText::new(tag)
+                                        .size(11.5)
+                                        .color(if active {
+                                            theme::ON_ACCENT()
+                                        } else {
+                                            theme::TEXT_2()
+                                        }),
+                                )
+                                .fill(if active {
+                                    theme::ACCENT()
+                                } else if theme::is_dark() {
+                                    Color32::from_rgba_unmultiplied(255, 255, 255, 10)
+                                } else {
+                                    Color32::from_rgb(0xEE, 0xEE, 0xF2)
+                                })
+                                .stroke(Stroke::NONE)
+                                .corner_radius(theme::RADIUS_PILL)
+                                .min_size(egui::vec2(0.0, 24.0)),
+                            );
+                            if resp.clicked() {
+                                pick_tag = Some(tag.clone());
+                            }
+                        }
+                    });
+                }
+
+                ui.add_space(10.0);
+                ui.label(
+                    RichText::new(s.update_changelog)
+                        .size(12.0)
+                        .color(theme::TEXT_3()),
+                );
+                ui.add_space(4.0);
+
+                let log_h = (ui.available_height() - 56.0).clamp(160.0, 360.0);
+                Frame::NONE
+                    .fill(if theme::is_dark() {
+                        theme::SURFACE_2()
+                    } else {
+                        Color32::from_rgb(0xF7, 0xF7, 0xF9)
+                    })
+                    .stroke(Stroke::new(1.0, theme::DIVIDER()))
+                    .corner_radius(theme::RADIUS_SM)
+                    .inner_margin(Margin::symmetric(12, 10))
+                    .show(ui, |ui| {
+                        ScrollArea::vertical()
+                            .id_salt("update_changelog")
+                            .max_height(log_h)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.set_min_width(ui.available_width());
+                                // Plain text changelog (markdown-ish from GitHub)
+                                if body.trim().is_empty() {
+                                    ui.label(
+                                        RichText::new("—")
+                                            .size(13.0)
+                                            .color(theme::TEXT_3()),
+                                    );
+                                } else {
+                                    for line in body.lines() {
+                                        let t = line.trim_end();
+                                        if t.starts_with("### ") {
+                                            ui.add_space(6.0);
+                                            ui.label(
+                                                RichText::new(t.trim_start_matches("### ").trim())
+                                                    .size(13.5)
+                                                    .strong()
+                                                    .color(theme::TEXT()),
+                                            );
+                                        } else if t.starts_with("## ") {
+                                            ui.add_space(8.0);
+                                            ui.label(
+                                                RichText::new(t.trim_start_matches("## ").trim())
+                                                    .size(14.5)
+                                                    .strong()
+                                                    .color(theme::TEXT()),
+                                            );
+                                        } else if t.starts_with("# ") {
+                                            ui.add_space(4.0);
+                                            ui.label(
+                                                RichText::new(t.trim_start_matches("# ").trim())
+                                                    .size(15.0)
+                                                    .strong()
+                                                    .color(theme::TEXT()),
+                                            );
+                                        } else if t.starts_with("- ") || t.starts_with("* ") {
+                                            ui.label(
+                                                RichText::new(format!("• {}", t[2..].trim()))
+                                                    .size(13.0)
+                                                    .color(theme::TEXT_2()),
+                                            );
+                                        } else if t.is_empty() {
+                                            ui.add_space(4.0);
+                                        } else {
+                                            ui.label(
+                                                RichText::new(t)
+                                                    .size(13.0)
+                                                    .color(theme::TEXT_2()),
+                                            );
+                                        }
+                                    }
+                                }
+                            });
+                    });
+
+                ui.add_space(14.0);
+                ui.horizontal(|ui| {
+                    if ghost_button(ui, s.update_open_releases).clicked() {
+                        do_releases = true;
+                    }
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if primary_button(ui, s.update_download, true).clicked() {
+                            do_download = true;
+                        }
+                        if ghost_button(ui, s.update_later).clicked() {
+                            do_later = true;
+                        }
+                    });
+                });
+            });
+
+        if !open || do_later {
+            self.dismiss_update_modal();
+        }
+        if let Some(tag) = pick_tag {
+            self.update.selected_tag = Some(tag);
+        }
+        if do_download {
+            self.open_update_download();
+        }
+        if do_releases {
+            update::open_url(update::RELEASES_URL);
+        }
+    }
+
+    /// Bottom-left corner reminder while an update is available (survives "Later").
+    fn ui_update_badge(&mut self, ctx: &egui::Context) {
+        if !self.update.show_corner_badge() || self.update.modal_open {
+            return;
+        }
+        let s = crate::i18n::t();
+        let tag = self
+            .update
+            .latest
+            .as_ref()
+            .map(|r| r.tag.as_str())
+            .unwrap_or("");
+        let label = format!("{}  {tag}", s.update_badge);
+
+        let mut open_modal = false;
+        let mut download = false;
+
+        // Offset from OS edge / taskbar
+        let x_off = 12.0;
+        let y_off = -14.0;
+
+        egui::Area::new(egui::Id::new("update_corner_badge"))
+            .order(egui::Order::Foreground)
+            .anchor(egui::Align2::LEFT_BOTTOM, [x_off, y_off])
+            .interactable(true)
+            .show(ctx, |ui| {
+                let fill = if theme::is_dark() {
+                    Color32::from_rgb(0x1A, 0x24, 0x36)
+                } else {
+                    Color32::from_rgb(0xEE, 0xF4, 0xFF)
+                };
+                let stroke = Stroke::new(
+                    1.0,
+                    Color32::from_rgba_unmultiplied(
+                        theme::ACCENT().r(),
+                        theme::ACCENT().g(),
+                        theme::ACCENT().b(),
+                        if theme::is_dark() { 140 } else { 100 },
+                    ),
+                );
+                let frame_resp = Frame::NONE
+                    .fill(fill)
+                    .stroke(stroke)
+                    .corner_radius(theme::RADIUS_PILL)
+                    .inner_margin(Margin::symmetric(12, 7))
+                    .shadow(if theme::is_dark() {
+                        egui::Shadow {
+                            offset: [0, 2],
+                            blur: 12,
+                            spread: 0,
+                            color: Color32::from_black_alpha(90),
+                        }
+                    } else {
+                        egui::Shadow {
+                            offset: [0, 2],
+                            blur: 10,
+                            spread: 0,
+                            color: Color32::from_black_alpha(28),
+                        }
+                    })
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 8.0;
+                            let (dot_rect, _) =
+                                ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                            ui.painter()
+                                .circle_filled(dot_rect.center(), 3.5, theme::ACCENT());
+                            ui.label(
+                                RichText::new(&label)
+                                    .size(12.5)
+                                    .strong()
+                                    .color(theme::TEXT()),
+                            );
+                            let view = ui.add(
+                                egui::Button::new(
+                                    RichText::new(s.update_view)
+                                        .size(11.5)
+                                        .color(theme::ON_ACCENT()),
+                                )
+                                .fill(theme::ACCENT())
+                                .stroke(Stroke::NONE)
+                                .corner_radius(theme::RADIUS_PILL)
+                                .min_size(egui::vec2(44.0, 22.0)),
+                            );
+                            if view.clicked() {
+                                open_modal = true;
+                            }
+                            let dl = ui
+                                .add(
+                                    egui::Button::new(
+                                        RichText::new(s.update_download)
+                                            .size(11.0)
+                                            .color(theme::ACCENT()),
+                                    )
+                                    .fill(Color32::TRANSPARENT)
+                                    .stroke(Stroke::NONE)
+                                    .min_size(egui::vec2(0.0, 22.0)),
+                                )
+                                .on_hover_text(s.update_download);
+                            if dl.clicked() {
+                                download = true;
+                            }
+                        });
+                    })
+                    .response
+                    .on_hover_text(format!(
+                        "{}\n{} → {}",
+                        s.update_available,
+                        format!("v{}", env!("CARGO_PKG_VERSION")),
+                        tag
+                    ));
+
+                if frame_resp.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                }
+                if frame_resp.clicked() && !open_modal && !download {
+                    open_modal = true;
+                }
+            });
+
+        if open_modal {
+            self.update.modal_open = true;
+            if let Some(t) = self.update.latest.as_ref().map(|r| r.tag.clone()) {
+                self.update.selected_tag = Some(t);
+            }
+        }
+        if download {
+            self.open_update_download();
+        }
+    }
+
     fn ui_permission_modal(&mut self, ctx: &egui::Context) {
         let Some(pending) = self.store.pending_permission() else {
             return;
@@ -4488,6 +4989,11 @@ impl eframe::App for GrokApp {
             self.pending_connect = false;
             self.connect_agent(ctx);
         }
+        // Startup update check (deferred a few frames so first paint is snappy)
+        if self.pending_update_check && self.frame_count == 5 {
+            self.pending_update_check = false;
+            self.start_update_check(ctx);
+        }
         // Re-apply title bar color a few times (HWND may not exist on first theme::apply).
         if self.frame_count == 2 || self.frame_count == 8 {
             crate::win_chrome::apply_titlebar_theme(self.config.dark_mode);
@@ -4507,6 +5013,7 @@ impl eframe::App for GrokApp {
         self.heal_tool_display_only();
         self.reconcile_idle_display();
         self.poll_install(ctx);
+        self.poll_update_check(ctx);
 
         // Live session list rescan while streaming (titles update on disk)
         if self.store.busy() {
@@ -4523,6 +5030,8 @@ impl eframe::App for GrokApp {
             || self.store.is_connecting()
             || self.settings.installing
             || self.pending_connect
+            || self.pending_update_check
+            || self.update.checking
             || self.paste_probe_frames > 0
             || self.smooth_assistant.active
             || !self.smooth_assistant.is_caught_up()
@@ -4577,6 +5086,8 @@ impl eframe::App for GrokApp {
         self.handle_settings_ui(ctx);
         self.ui_logs(ctx);
         self.ui_permission_modal(ctx);
+        self.ui_update_modal(ctx);
+        self.ui_update_badge(ctx);
         self.ui_rename_dialog(ctx);
         self.ui_archive_panel(ctx);
         self.ui_import_panel(ctx);
