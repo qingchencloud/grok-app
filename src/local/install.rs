@@ -6,7 +6,6 @@ use anyhow::{bail, Context, Result};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
-use tracing::info;
 
 pub const INSTALL_URL: &str = "https://x.ai/cli/install.ps1";
 

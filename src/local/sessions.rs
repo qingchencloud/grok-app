@@ -184,18 +184,18 @@ pub fn normalize_project_key(cwd: &str) -> String {
 }
 
 /// Short project name from cwd (last folder, or drive root).
+///
+/// Uses manual split on both `\` and `/` so Windows-style paths still yield
+/// the last segment on Linux/macOS CI (std::path only treats `/` as sep on Unix).
 pub fn project_display_name(cwd: &str) -> String {
     let key = normalize_project_key(cwd);
     if key.is_empty() {
         return crate::i18n::t().no_project.into();
     }
-    let p = Path::new(&key);
-    if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
-        if !name.is_empty() {
-            return name.to_string();
-        }
-    }
-    key
+    key.rsplit(['\\', '/'])
+        .find(|s| !s.is_empty())
+        .unwrap_or(key.as_str())
+        .to_string()
 }
 
 /// Rename a session by rewriting `generated_title` / `session_summary` in summary.json.
