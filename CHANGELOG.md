@@ -2,6 +2,19 @@
 
 All notable changes to **Grok Desktop** (`qingchencloud/grok-app`) are documented here.
 
+## [0.1.3] — 2026-07-25
+
+### Added
+- **Skills** manager in Settings: list/search/filter, enable/disable (`[skills].disabled`), open file/folder
+- **System tray**: show/hide/quit; optional close-to-tray (X hides instead of quit)
+- **Desktop notifications** when an agent turn finishes (optional: only when window is in background)
+
+### Fixed
+- Composer input no longer grows without bound; capped height with internal scroll (attachments strip capped too)
+
+### Notes
+- Install with **`GrokDesktop-Setup-0.1.3-windows-x64.exe`** for Desktop + Start Menu shortcuts
+
 ## [0.1.2] — 2026-07-25
 
 ### Fixed

@@ -1,10 +1,10 @@
 ; Inno Setup 6 — real per-user install (no admin).
 ; Installs to %LOCALAPPDATA%\Programs\Grok Desktop\
 ; Always creates Start Menu + Desktop shortcuts + Add/Remove Programs entry.
-; Built on CI: iscc packaging\setup.iss /DMyAppVersion=0.1.2
+; Built on CI: iscc packaging\setup.iss /DMyAppVersion=0.1.3
 
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.2"
+  #define MyAppVersion "0.1.3"
 #endif
 
 #define MyAppName "Grok Desktop"
