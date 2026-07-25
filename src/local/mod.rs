@@ -5,6 +5,7 @@ pub mod app_index;
 pub mod cli_config;
 pub mod install;
 pub mod sessions;
+pub mod skills;
 
 pub use active::live_session_ids;
 pub use app_index::{

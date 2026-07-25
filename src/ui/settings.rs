@@ -2,6 +2,7 @@
 
 use crate::config::{effort_label, normalize_effort, resolve_grok_binary, AppConfig, MODELS};
 use crate::local::install::{probe_status, probe_status_fast, CliInstallStatus, INSTALL_URL};
+use crate::local::skills::{self, SkillEntry};
 use crate::local::{CliTomlConfig, LocalSession};
 use crate::ui::icons::{self, IconKind};
 use crate::ui::theme;
@@ -24,6 +25,7 @@ pub enum SettingsTab {
     Appearance,
     Agent,
     Cli,
+    Skills,
     Advanced,
     About,
 }
@@ -35,6 +37,7 @@ impl SettingsTab {
             Self::Appearance => s.tab_appearance,
             Self::Agent => s.tab_agent,
             Self::Cli => s.tab_cli,
+            Self::Skills => s.tab_skills,
             Self::Advanced => s.tab_advanced,
             Self::About => s.tab_about,
         }
@@ -46,16 +49,18 @@ impl SettingsTab {
             Self::Appearance => s.tab_appearance_desc,
             Self::Agent => s.tab_agent_desc,
             Self::Cli => s.tab_cli_desc,
+            Self::Skills => s.tab_skills_desc,
             Self::Advanced => s.tab_advanced_desc,
             Self::About => s.tab_about_desc,
         }
     }
 
-    pub fn all() -> [Self; 5] {
+    pub fn all() -> [Self; 6] {
         [
             Self::Appearance,
             Self::Agent,
             Self::Cli,
+            Self::Skills,
             Self::Advanced,
             Self::About,
         ]
@@ -92,6 +97,13 @@ pub struct SettingsState {
     pub user_avatar_path: String,
     /// Check GitHub Releases for desktop app updates on startup.
     pub check_updates_on_startup: bool,
+    /// Skills discovered for the current working directory.
+    pub skills: Vec<SkillEntry>,
+    pub skills_filter: String,
+    /// `all` or a source label (`user`, `bundled`, …).
+    pub skills_source_filter: String,
+    pub skills_loaded: bool,
+    pub skills_error: Option<String>,
 }
 
 impl SettingsState {
@@ -122,6 +134,11 @@ impl SettingsState {
             user_display_name: app.user_display_name.clone(),
             user_avatar_path: app.user_avatar_path.clone(),
             check_updates_on_startup: app.check_updates_on_startup,
+            skills: Vec::new(),
+            skills_filter: String::new(),
+            skills_source_filter: "all".into(),
+            skills_loaded: false,
+            skills_error: None,
         };
         if s.model.is_empty() && !s.cli_toml.default_model.is_empty() {
             s.model = s.cli_toml.default_model.clone();
@@ -153,6 +170,17 @@ impl SettingsState {
         self.cli_status = probe_status(&self.grok_path);
         self.cli_toml = CliTomlConfig::load();
         self.dirty_toml = false;
+    }
+
+    /// Scan skills via `grok inspect --json` (or filesystem fallback).
+    pub fn refresh_skills(&mut self) {
+        self.skills = skills::list_skills(&self.grok_path, &self.cwd);
+        self.skills_loaded = true;
+        self.skills_error = None;
+        if self.skills.is_empty() {
+            // Soft hint only — empty can be legitimate.
+            self.skills_error = None;
+        }
     }
 }
 
@@ -361,6 +389,9 @@ pub fn draw_settings(
                                     }
                                     if resp.clicked() {
                                         state.tab = tab;
+                                        if tab == SettingsTab::Skills && !state.skills_loaded {
+                                            state.refresh_skills();
+                                        }
                                     }
                                     ui.add_space(3.0);
                                 }
@@ -422,6 +453,7 @@ pub fn draw_settings(
                                                 tab_agent(ui, state, &mut actions)
                                             }
                                             SettingsTab::Cli => tab_cli(ui, state, &mut actions),
+                                            SettingsTab::Skills => tab_skills(ui, state),
                                             SettingsTab::Advanced => {
                                                 tab_advanced(ui, state, sessions, &mut actions)
                                             }
@@ -1170,6 +1202,245 @@ fn tab_advanced(
     );
 
     footer_save(ui, actions, false);
+}
+
+fn tab_skills(ui: &mut Ui, state: &mut SettingsState) {
+    let s = crate::i18n::t();
+    if !state.skills_loaded {
+        state.refresh_skills();
+    }
+
+    section(ui, s.tab_skills, s.skills_hint_body, |ui| {
+        ui.horizontal(|ui| {
+            ui.add(
+                TextEdit::singleline(&mut state.skills_filter)
+                    .desired_width(220.0)
+                    .hint_text(s.skills_search)
+                    .frame(true),
+            );
+            if ghost_button(ui, s.skills_refresh).clicked() {
+                state.refresh_skills();
+                state.message = Some(format!(
+                    "{} · {} {}",
+                    s.skills_refresh,
+                    state.skills.len(),
+                    s.skills_count
+                ));
+            }
+            ui.label(
+                RichText::new(format!("{} {}", state.skills.len(), s.skills_count))
+                    .size(12.0)
+                    .color(theme::TEXT_3()),
+            );
+        });
+
+        // Source chips
+        ui.add_space(8.0);
+        let mut sources: Vec<String> = state
+            .skills
+            .iter()
+            .map(|k| k.source.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        sources.insert(0, "all".into());
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            for src in &sources {
+                let label = if src == "all" {
+                    s.skills_filter_all.to_string()
+                } else {
+                    src.clone()
+                };
+                let active = state.skills_source_filter == *src;
+                let resp = ui.add(
+                    egui::Button::new(RichText::new(label).size(11.5).color(if active {
+                        theme::ON_ACCENT()
+                    } else {
+                        theme::TEXT_2()
+                    }))
+                    .fill(if active {
+                        theme::ACCENT()
+                    } else if theme::is_dark() {
+                        Color32::from_rgba_unmultiplied(255, 255, 255, 10)
+                    } else {
+                        Color32::from_rgb(0xEE, 0xEE, 0xF2)
+                    })
+                    .stroke(Stroke::NONE)
+                    .corner_radius(theme::RADIUS_PILL)
+                    .min_size(Vec2::new(0.0, 24.0)),
+                );
+                if resp.clicked() {
+                    state.skills_source_filter = src.clone();
+                }
+            }
+        });
+
+        ui.add_space(10.0);
+        let q = state.skills_filter.trim().to_ascii_lowercase();
+        let src_f = state.skills_source_filter.clone();
+        let filtered: Vec<usize> = state
+            .skills
+            .iter()
+            .enumerate()
+            .filter(|(_, sk)| {
+                if src_f != "all" && sk.source != src_f {
+                    return false;
+                }
+                if q.is_empty() {
+                    return true;
+                }
+                sk.name.to_ascii_lowercase().contains(&q)
+                    || sk.description.to_ascii_lowercase().contains(&q)
+                    || sk.source.to_ascii_lowercase().contains(&q)
+            })
+            .map(|(i, _)| i)
+            .collect();
+
+        if filtered.is_empty() {
+            ui.label(
+                RichText::new(s.skills_empty)
+                    .size(13.0)
+                    .color(theme::TEXT_3()),
+            );
+            return;
+        }
+
+        let list_h = (ui.available_height() - 8.0).clamp(220.0, 420.0);
+        ScrollArea::vertical()
+            .id_salt("skills_list")
+            .max_height(list_h)
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                let mut toggle: Option<(String, bool)> = None;
+                let mut open_file: Option<std::path::PathBuf> = None;
+                let mut open_dir: Option<std::path::PathBuf> = None;
+
+                for idx in filtered {
+                    let sk = &state.skills[idx];
+                    let name = sk.name.clone();
+                    let path = sk.path.clone();
+                    let enabled = !sk.disabled;
+
+                    Frame::NONE
+                        .fill(if theme::is_dark() {
+                            theme::SURFACE_2()
+                        } else {
+                            Color32::from_rgb(0xF7, 0xF7, 0xF9)
+                        })
+                        .stroke(Stroke::new(1.0, theme::DIVIDER()))
+                        .corner_radius(theme::RADIUS_SM)
+                        .inner_margin(Margin::symmetric(12, 10))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.vertical(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            RichText::new(&name)
+                                                .size(14.0)
+                                                .strong()
+                                                .color(theme::TEXT()),
+                                        );
+                                        ui.label(
+                                            RichText::new(&sk.source)
+                                                .size(11.0)
+                                                .color(theme::ACCENT()),
+                                        );
+                                        if sk.user_invocable {
+                                            ui.label(
+                                                RichText::new(format!("/{}", sk.name))
+                                                    .size(11.0)
+                                                    .color(theme::TEXT_3()),
+                                            );
+                                        }
+                                        if sk.readonly {
+                                            ui.label(
+                                                RichText::new(s.skills_readonly)
+                                                    .size(10.5)
+                                                    .color(theme::TEXT_3()),
+                                            );
+                                        }
+                                    });
+                                    if !sk.description.is_empty() {
+                                        ui.add_space(2.0);
+                                        ui.label(
+                                            RichText::new(truncate_desc(&sk.description, 140))
+                                                .size(12.0)
+                                                .color(theme::TEXT_2()),
+                                        );
+                                    }
+                                    ui.add_space(2.0);
+                                    ui.label(
+                                        RichText::new(sk.path.display().to_string())
+                                            .size(10.5)
+                                            .color(theme::TEXT_3()),
+                                    );
+                                });
+                            });
+                            ui.add_space(6.0);
+                            ui.horizontal(|ui| {
+                                let mut on = enabled;
+                                let chk_label = if enabled {
+                                    s.skills_enabled
+                                } else {
+                                    s.skills_disabled_label
+                                };
+                                if ui
+                                    .checkbox(&mut on, RichText::new(chk_label).size(12.5))
+                                    .changed()
+                                {
+                                    // disabled = !enabled after toggle
+                                    toggle = Some((name.clone(), !on));
+                                }
+                                if ghost_button(ui, s.skills_open_file).clicked() {
+                                    open_file = Some(path.clone());
+                                }
+                                if ghost_button(ui, s.skills_open_folder).clicked() {
+                                    open_dir = Some(path.clone());
+                                }
+                            });
+                        });
+                    ui.add_space(6.0);
+                }
+
+                if let Some((name, disabled)) = toggle {
+                    match skills::set_skill_disabled(&name, disabled) {
+                        Ok(()) => {
+                            if let Some(sk) = state.skills.iter_mut().find(|x| x.name == name) {
+                                sk.disabled = disabled;
+                            }
+                            state.message = Some(s.skills_toggle_ok.into());
+                        }
+                        Err(e) => {
+                            state.message = Some(format!("{}: {e:#}", s.skills_toggle_fail));
+                        }
+                    }
+                }
+                if let Some(p) = open_file {
+                    if let Err(e) = skills::open_skill_file(&p) {
+                        state.message = Some(format!("{}: {e:#}", s.skills_toggle_fail));
+                    }
+                }
+                if let Some(p) = open_dir {
+                    if let Err(e) = skills::open_skill_folder(&p) {
+                        state.message = Some(format!("{}: {e:#}", s.skills_toggle_fail));
+                    }
+                }
+            });
+    });
+}
+
+fn truncate_desc(s: &str, max: usize) -> String {
+    let n = s.chars().count();
+    if n <= max {
+        s.to_string()
+    } else {
+        format!(
+            "{}…",
+            s.chars().take(max.saturating_sub(1)).collect::<String>()
+        )
+    }
 }
 
 fn tab_about(
