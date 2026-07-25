@@ -4276,66 +4276,76 @@ impl GrokApp {
                 }
 
                 if !pending.is_empty() {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing =
-                            egui::vec2(theme::SPACE_SM, theme::SPACE_SM);
-                        let mut remove: Option<String> = None;
-                        for img in &pending {
-                            ui.push_id(&img.id, |ui| {
-                                Frame::NONE
-                                    .fill(theme::SURFACE_2())
-                                    .stroke(Stroke::NONE)
-                                    .inner_margin(Margin::symmetric(6, 4))
-                                    .corner_radius(theme::RADIUS_SM)
-                                    .show(ui, |ui| {
-                                        ui.horizontal(|ui| {
-                                            ui.spacing_mut().item_spacing.x = 6.0;
-                                            if let Some(tex) = self.ensure_thumb(ctx, img) {
-                                                let max = 36.0_f32;
-                                                let scale = (max
-                                                    / img.width.max(img.height) as f32)
-                                                    .min(1.0);
-                                                let size = egui::vec2(
-                                                    img.width as f32 * scale,
-                                                    img.height as f32 * scale,
-                                                );
-                                                let ir = ui.add(
-                                                    egui::Image::new((tex.id(), size))
-                                                        .corner_radius(5.0)
-                                                        .sense(egui::Sense::click()),
-                                                );
-                                                if ir.clicked() {
-                                                    self.image_preview = Some(img.to_chat_image());
-                                                }
-                                            }
-                                            ui.label(
-                                                RichText::new(widgets::path_short(&img.name, 12))
-                                                    .size(11.5)
-                                                    .color(theme::TEXT_2()),
-                                            );
-                                            if ui
-                                                .add(
-                                                    egui::Button::new(
-                                                        RichText::new("×")
-                                                            .size(13.0)
-                                                            .color(theme::TEXT_3()),
-                                                    )
-                                                    .frame(false)
-                                                    .min_size(egui::vec2(20.0, 20.0)),
-                                                )
-                                                .clicked()
-                                            {
-                                                remove = Some(img.id.clone());
-                                            }
-                                        });
+                    // Cap attachment strip so many thumbs don't grow the panel forever.
+                    ScrollArea::vertical()
+                        .id_salt("composer_thumbs")
+                        .max_height(theme::COMPOSER_THUMB_MAX_H)
+                        .auto_shrink([false, true])
+                        .show(ui, |ui| {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.spacing_mut().item_spacing =
+                                    egui::vec2(theme::SPACE_SM, theme::SPACE_SM);
+                                let mut remove: Option<String> = None;
+                                for img in &pending {
+                                    ui.push_id(&img.id, |ui| {
+                                        Frame::NONE
+                                            .fill(theme::SURFACE_2())
+                                            .stroke(Stroke::NONE)
+                                            .inner_margin(Margin::symmetric(6, 4))
+                                            .corner_radius(theme::RADIUS_SM)
+                                            .show(ui, |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.spacing_mut().item_spacing.x = 6.0;
+                                                    if let Some(tex) = self.ensure_thumb(ctx, img) {
+                                                        let max = 36.0_f32;
+                                                        let scale = (max
+                                                            / img.width.max(img.height) as f32)
+                                                            .min(1.0);
+                                                        let size = egui::vec2(
+                                                            img.width as f32 * scale,
+                                                            img.height as f32 * scale,
+                                                        );
+                                                        let ir = ui.add(
+                                                            egui::Image::new((tex.id(), size))
+                                                                .corner_radius(5.0)
+                                                                .sense(egui::Sense::click()),
+                                                        );
+                                                        if ir.clicked() {
+                                                            self.image_preview =
+                                                                Some(img.to_chat_image());
+                                                        }
+                                                    }
+                                                    ui.label(
+                                                        RichText::new(widgets::path_short(
+                                                            &img.name, 12,
+                                                        ))
+                                                        .size(11.5)
+                                                        .color(theme::TEXT_2()),
+                                                    );
+                                                    if ui
+                                                        .add(
+                                                            egui::Button::new(
+                                                                RichText::new("×")
+                                                                    .size(13.0)
+                                                                    .color(theme::TEXT_3()),
+                                                            )
+                                                            .frame(false)
+                                                            .min_size(egui::vec2(20.0, 20.0)),
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        remove = Some(img.id.clone());
+                                                    }
+                                                });
+                                            });
                                     });
+                                }
+                                if let Some(id) = remove {
+                                    self.pending_images.retain(|x| x.id != id);
+                                    self.thumb_textures.remove(&id);
+                                }
                             });
-                        }
-                        if let Some(id) = remove {
-                            self.pending_images.retain(|x| x.id != id);
-                            self.thumb_textures.remove(&id);
-                        }
-                    });
+                        });
                     ui.add_space(theme::SPACE_SM);
                 }
 
@@ -4347,14 +4357,32 @@ impl GrokApp {
                     crate::i18n::t().input_optional_note
                 };
 
+                // Grow with content up to COMPOSER_TEXT_MAX_H, then scroll inside.
+                // Bare multiline TextEdit + content-sized bottom panel previously grew without limit.
+                let line_count = self.input.chars().filter(|&c| c == '\n').count() + 1;
+                let min_h = theme::COMPOSER_TEXT_H;
+                let max_h = theme::COMPOSER_TEXT_MAX_H;
+                // Layout rows: at least 2; content-driven (ScrollArea clips outer height).
+                let desired_rows = line_count.clamp(2, 200);
+
                 let te = TextEdit::multiline(&mut self.input)
                     .desired_width(f32::INFINITY)
-                    .desired_rows(2)
+                    .desired_rows(desired_rows)
                     .frame(false)
                     .hint_text(RichText::new(hint).size(14.0).color(theme::TEXT_3()))
                     .return_key(None);
 
-                let resp = ui.add_sized([ui.available_width(), theme::COMPOSER_TEXT_H], te);
+                let resp = ScrollArea::vertical()
+                    .id_salt("composer_input")
+                    .max_height(max_h)
+                    .min_scrolled_height(min_h)
+                    .auto_shrink([false, true])
+                    .stick_to_bottom(true)
+                    .show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.add(te)
+                    })
+                    .inner;
 
                 if self.input_focus_request {
                     resp.request_focus();

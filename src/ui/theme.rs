@@ -130,7 +130,12 @@ pub const CHAT_NAME_MAX_W: f32 = 140.0;
 pub const COMPOSER_MIN_H: f32 = 44.0;
 pub const COMPOSER_PANEL_H: f32 = 148.0;
 pub const COMPOSER_THUMB_EXTRA: f32 = 76.0;
+/// Default / empty editor height (~2 lines).
 pub const COMPOSER_TEXT_H: f32 = 48.0;
+/// Cap so long paste / multi-line prompts never push chat off-screen.
+pub const COMPOSER_TEXT_MAX_H: f32 = 168.0;
+/// Attachment strip cap (many thumbs stay scrollable).
+pub const COMPOSER_THUMB_MAX_H: f32 = 88.0;
 
 pub const RADIUS: u8 = 8;
 pub const RADIUS_SM: u8 = 6;
