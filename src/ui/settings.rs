@@ -97,6 +97,10 @@ pub struct SettingsState {
     pub user_avatar_path: String,
     /// Check GitHub Releases for desktop app updates on startup.
     pub check_updates_on_startup: bool,
+    pub show_tray: bool,
+    pub close_to_tray: bool,
+    pub notify_on_turn_complete: bool,
+    pub notify_only_when_unfocused: bool,
     /// Skills discovered for the current working directory.
     pub skills: Vec<SkillEntry>,
     pub skills_filter: String,
@@ -134,6 +138,10 @@ impl SettingsState {
             user_display_name: app.user_display_name.clone(),
             user_avatar_path: app.user_avatar_path.clone(),
             check_updates_on_startup: app.check_updates_on_startup,
+            show_tray: app.show_tray,
+            close_to_tray: app.close_to_tray,
+            notify_on_turn_complete: app.notify_on_turn_complete,
+            notify_only_when_unfocused: app.notify_only_when_unfocused,
             skills: Vec::new(),
             skills_filter: String::new(),
             skills_source_filter: "all".into(),
@@ -164,6 +172,10 @@ impl SettingsState {
         self.user_display_name = app.user_display_name.clone();
         self.user_avatar_path = app.user_avatar_path.clone();
         self.check_updates_on_startup = app.check_updates_on_startup;
+        self.show_tray = app.show_tray;
+        self.close_to_tray = app.close_to_tray;
+        self.notify_on_turn_complete = app.notify_on_turn_complete;
+        self.notify_only_when_unfocused = app.notify_only_when_unfocused;
     }
 
     pub fn refresh_cli(&mut self) {
@@ -779,6 +791,35 @@ fn tab_appearance(ui: &mut Ui, state: &mut SettingsState, actions: &mut Settings
             s.enter_to_send,
             s.enter_to_send_hint,
             &mut state.enter_to_send,
+        );
+    });
+
+    section(ui, s.tray_section, s.tray_enable_hint, |ui| {
+        let s = crate::i18n::t();
+        let _ = row_toggle(ui, s.tray_enable, s.tray_enable_hint, &mut state.show_tray);
+        ui.add_space(10.0);
+        let _ = row_toggle(
+            ui,
+            s.tray_close_to_tray,
+            s.tray_close_to_tray_hint,
+            &mut state.close_to_tray,
+        );
+    });
+
+    section(ui, s.notify_section, s.notify_on_complete_hint, |ui| {
+        let s = crate::i18n::t();
+        let _ = row_toggle(
+            ui,
+            s.notify_on_complete,
+            s.notify_on_complete_hint,
+            &mut state.notify_on_turn_complete,
+        );
+        ui.add_space(10.0);
+        let _ = row_toggle(
+            ui,
+            s.notify_only_unfocused,
+            s.notify_only_unfocused_hint,
+            &mut state.notify_only_when_unfocused,
         );
     });
 }

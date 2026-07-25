@@ -40,6 +40,8 @@ base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
 # Update check (GitHub Releases API)
 ureq = { version = "2", default-features = false, features = ["tls", "json"] }
+tray-icon = "0.19"
+notify-rust = "4"
 
 [target.'cfg(windows)'.dependencies]
 clipboard-win = { version = "5.4", features = ["std"] }

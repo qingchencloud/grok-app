@@ -6,6 +6,8 @@ pub mod acp;
 pub mod app;
 pub mod attachments;
 pub mod config;
+pub mod desktop_notify;
+pub mod desktop_tray;
 pub mod i18n;
 pub mod local;
 pub mod models_cache;

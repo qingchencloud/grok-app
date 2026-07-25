@@ -4,6 +4,8 @@ use crate::attachments::{self, PendingImage};
 use crate::config::{
     effort_label, is_cli_authenticated, normalize_effort, resolve_grok_binary, AppConfig, MODELS,
 };
+use crate::desktop_notify;
+use crate::desktop_tray::{AppTray, TrayAction};
 use crate::local::install::{install_cli, InstallProgress};
 use crate::local::{
     archive_session, delete_from_app, group_sessions_by_project, import_cli_session,
@@ -142,6 +144,12 @@ pub struct GrokApp {
     update_tx: std_mpsc::Sender<UpdateCheckResult>,
     /// Startup update check deferred a few frames.
     pending_update_check: bool,
+    /// System tray (optional).
+    tray: Option<AppTray>,
+    /// Window currently hidden (to tray).
+    window_hidden: bool,
+    /// Next close should quit (from tray Quit), not hide.
+    quit_requested: bool,
 }
 
 struct NewChatDraft {
@@ -254,6 +262,9 @@ impl GrokApp {
                 tx
             },
             pending_update_check: false,
+            tray: None,
+            window_hidden: false,
+            quit_requested: false,
         };
 
         let (utx, urx) = update::channel();
@@ -564,6 +575,11 @@ impl GrokApp {
                 theme::apply(ctx, self.config.dark_mode);
                 self.apply_font_scale(ctx);
                 self.settings.message = Some(crate::i18n::t().settings_saved.into());
+                if self.config.show_tray {
+                    self.ensure_tray();
+                } else {
+                    self.tray = None;
+                }
                 if actions.reconnect {
                     self.connect_agent(ctx);
                 }
@@ -618,9 +634,107 @@ impl GrokApp {
         self.config.user_display_name = AppConfig::sanitize_display_name(&s.user_display_name);
         self.config.user_avatar_path = s.user_avatar_path.trim().to_string();
         self.config.check_updates_on_startup = s.check_updates_on_startup;
+        self.config.show_tray = s.show_tray;
+        self.config.close_to_tray = s.close_to_tray;
+        self.config.notify_on_turn_complete = s.notify_on_turn_complete;
+        self.config.notify_only_when_unfocused = s.notify_only_when_unfocused;
         // Keep settings fields in sync with sanitized values
         self.settings.user_display_name = self.config.user_display_name.clone();
         self.settings.user_avatar_path = self.config.user_avatar_path.clone();
+    }
+
+    fn ensure_tray(&mut self) {
+        if !self.config.show_tray {
+            self.tray = None;
+            return;
+        }
+        if self.tray.is_some() {
+            return;
+        }
+        let tip = format!("Grok  v{}", env!("CARGO_PKG_VERSION"));
+        match AppTray::try_new(&tip) {
+            Ok(t) => {
+                self.tray = Some(t);
+                self.logs.push(crate::i18n::t().tray_enable.to_string());
+            }
+            Err(e) => {
+                tracing::warn!("tray init failed: {e:#}");
+                self.logs.push(format!("tray: {e:#}"));
+            }
+        }
+    }
+
+    fn show_main_window(&mut self, ctx: &egui::Context) {
+        self.window_hidden = false;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        crate::win_chrome::apply_titlebar_theme(self.config.dark_mode);
+    }
+
+    fn hide_to_tray(&mut self, ctx: &egui::Context) {
+        self.window_hidden = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+    }
+
+    fn poll_tray(&mut self, ctx: &egui::Context) {
+        let actions: Vec<TrayAction> = self.tray.as_ref().map(|t| t.poll()).unwrap_or_default();
+        for a in actions {
+            match a {
+                TrayAction::Show => self.show_main_window(ctx),
+                TrayAction::Hide => {
+                    self.ensure_tray();
+                    self.hide_to_tray(ctx);
+                }
+                TrayAction::Toggle => {
+                    if self.window_hidden {
+                        self.show_main_window(ctx);
+                    } else {
+                        self.hide_to_tray(ctx);
+                    }
+                }
+                TrayAction::Quit => {
+                    self.quit_requested = true;
+                    self.window_hidden = false;
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
+        }
+    }
+
+    fn handle_close_to_tray(&mut self, ctx: &egui::Context) {
+        let close = ctx.input(|i| i.viewport().close_requested());
+        if !close {
+            return;
+        }
+        if self.quit_requested {
+            return;
+        }
+        if self.config.close_to_tray && self.config.show_tray {
+            self.ensure_tray();
+            if self.tray.is_some() {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.hide_to_tray(ctx);
+            }
+        }
+    }
+
+    /// Desktop toast when a turn ends (respects settings + focus).
+    fn maybe_notify_turn_complete(&self, ctx: &egui::Context, cancelled: bool) {
+        if !self.config.notify_on_turn_complete {
+            return;
+        }
+        let focused = ctx.input(|i| i.viewport().focused).unwrap_or(true);
+        if self.config.notify_only_when_unfocused && focused && !self.window_hidden {
+            return;
+        }
+        let s = crate::i18n::t();
+        if cancelled {
+            desktop_notify::notify_turn_done(s.notify_turn_cancelled, s.notify_turn_body);
+        } else {
+            desktop_notify::notify_turn_done(s.notify_turn_title, s.notify_turn_body);
+        }
     }
 
     fn open_local_session(&mut self, sess: &LocalSession, ctx: &egui::Context) {
@@ -1835,11 +1949,12 @@ impl GrokApp {
                     stop_reason,
                     turn_gen,
                 } => {
+                    let cancelled = stop_reason == "cancelled";
                     let st = if stop_reason == "end_turn"
                         || stop_reason == "cancelled"
                         || stop_reason.is_empty()
                     {
-                        if stop_reason == "cancelled" {
+                        if cancelled {
                             crate::i18n::t().cancelled.to_string()
                         } else {
                             crate::i18n::t().ready.to_string()
@@ -1855,6 +1970,7 @@ impl GrokApp {
                         if !self.chat_away_from_bottom {
                             self.scroll_to_bottom = true;
                         }
+                        self.maybe_notify_turn_complete(ctx, cancelled);
                     } else {
                         self.logs.push(format!(
                             "忽略过期 PromptFinished gen={turn_gen} (current={})",
@@ -1868,7 +1984,8 @@ impl GrokApp {
                         continue;
                     }
                     let gen = self.store.turn_gen();
-                    let st = if stop_reason == "cancelled" {
+                    let cancelled = stop_reason == "cancelled";
+                    let st = if cancelled {
                         crate::i18n::t().cancelled.to_string()
                     } else if stop_reason.is_empty() || stop_reason == "end_turn" {
                         crate::i18n::t().ready.to_string()
@@ -1885,6 +2002,7 @@ impl GrokApp {
                         if !self.chat_away_from_bottom {
                             self.scroll_to_bottom = true;
                         }
+                        self.maybe_notify_turn_complete(ctx, cancelled);
                     }
                 }
                 AgentEvent::Error { message, turn_gen } => {
@@ -4993,10 +5111,26 @@ impl eframe::App for GrokApp {
             self.pending_update_check = false;
             self.start_update_check(ctx);
         }
+        // Tray after a couple frames (event loop ready)
+        if self.frame_count == 4
+            || (self.config.show_tray && self.tray.is_none() && self.frame_count == 30)
+        {
+            self.ensure_tray();
+        }
+        // Drop tray if disabled in settings
+        if !self.config.show_tray && self.tray.is_some() {
+            self.tray = None;
+            if self.window_hidden {
+                self.show_main_window(ctx);
+            }
+        }
         // Re-apply title bar color a few times (HWND may not exist on first theme::apply).
         if self.frame_count == 2 || self.frame_count == 8 {
             crate::win_chrome::apply_titlebar_theme(self.config.dark_mode);
         }
+
+        self.handle_close_to_tray(ctx);
+        self.poll_tray(ctx);
 
         // MUST run before any TextEdit: intercept Ctrl+V image paste so the
         // input field cannot swallow it.
@@ -5025,6 +5159,8 @@ impl eframe::App for GrokApp {
             }
         }
 
+        // Keep polling tray while hidden / idle so menu clicks work
+        let need_tray_poll = self.tray.is_some();
         if self.store.busy()
             || self.store.is_connecting()
             || self.settings.installing
@@ -5034,9 +5170,13 @@ impl eframe::App for GrokApp {
             || self.paste_probe_frames > 0
             || self.smooth_assistant.active
             || !self.smooth_assistant.is_caught_up()
+            || need_tray_poll
+            || self.window_hidden
         {
             ctx.request_repaint_after(std::time::Duration::from_millis(if self.store.busy() {
                 16
+            } else if self.window_hidden {
+                200
             } else {
                 40
             }));

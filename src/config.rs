@@ -45,6 +45,14 @@ pub struct AppConfig {
     pub check_updates_on_startup: bool,
     /// Tag the user dismissed with "Later" (e.g. `v0.1.1`). Corner badge still shows.
     pub update_dismissed_tag: String,
+    /// Show system tray icon.
+    pub show_tray: bool,
+    /// Close (X) hides to tray instead of quitting.
+    pub close_to_tray: bool,
+    /// Desktop notification when an agent turn finishes.
+    pub notify_on_turn_complete: bool,
+    /// Only notify when the window is unfocused or hidden (avoid noise while using the app).
+    pub notify_only_when_unfocused: bool,
 }
 
 impl Default for AppConfig {
@@ -73,6 +81,10 @@ impl Default for AppConfig {
             user_avatar_path: String::new(),
             check_updates_on_startup: true,
             update_dismissed_tag: String::new(),
+            show_tray: true,
+            close_to_tray: true,
+            notify_on_turn_complete: true,
+            notify_only_when_unfocused: true,
         }
     }
 }
