@@ -2,6 +2,16 @@
 
 All notable changes to **Grok Desktop** (`qingchencloud/grok-app`) are documented here.
 
+## [0.1.5] — 2026-07-29
+
+### Fixed
+- Windows upgrades now stop the existing Grok Desktop process tree before replacing files
+- The installer no longer gets stuck when the running app turns a close request into **Hide to tray**
+- The active `grok agent` child process is also stopped during upgrade, preventing an orphaned tray/session process
+
+### Notes
+- Install with **`GrokDesktop-Setup-0.1.5-windows-x64.exe`**; it upgrades the existing per-user installation in place
+
 ## [0.1.4] — 2026-07-29
 
 ### Added

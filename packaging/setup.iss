@@ -1,10 +1,10 @@
 ; Inno Setup 6 — real per-user install (no admin).
 ; Installs to %LOCALAPPDATA%\Programs\Grok Desktop\
 ; Always creates Start Menu + Desktop shortcuts + Add/Remove Programs entry.
-; Built on CI: iscc packaging\setup.iss /DMyAppVersion=0.1.4
+; Built on CI: iscc packaging\setup.iss /DMyAppVersion=0.1.5
 
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.4"
+  #define MyAppVersion "0.1.5"
 #endif
 
 #define MyAppName "Grok Desktop"
@@ -44,7 +44,9 @@ VersionInfoVersion={#MyAppVersion}
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription={#MyAppName} Setup
 VersionInfoProductName={#MyAppName}
-CloseApplications=yes
+; The app normally turns WM_CLOSE into "hide to tray". Force is the final
+; Restart Manager fallback if the explicit process-tree shutdown below fails.
+CloseApplications=force
 RestartApplications=no
 LicenseFile=..\LICENSE
 ; Allow reinstall / upgrade over the same AppId
@@ -85,7 +87,34 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 Type: filesandordirs; Name: "{app}"
 
 [Code]
+procedure StopRunningGrokDesktop;
+var
+  ResultCode: Integer;
+begin
+  { Only do this for an upgrade/reinstall of an existing per-user install. }
+  if FileExists(ExpandConstant('{app}\{#MyAppExeName}')) then
+  begin
+    { /T also stops the Grok CLI agent child; /F bypasses close-to-tray. }
+    Exec(
+      ExpandConstant('{sys}\taskkill.exe'),
+      '/F /T /IM "{#MyAppExeName}"',
+      '',
+      SW_HIDE,
+      ewWaitUntilTerminated,
+      ResultCode
+    );
+    Sleep(500);
+  end;
+end;
+
 function InitializeSetup(): Boolean;
 begin
   Result := True;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  { Runs before Inno Setup checks locked [Files] resources. }
+  StopRunningGrokDesktop;
+  Result := '';
 end;
