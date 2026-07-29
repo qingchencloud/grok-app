@@ -5,6 +5,35 @@ use std::path::PathBuf;
 use grok_app::acp::parse::{build_prompt_params, session_update_to_events};
 use grok_app::acp::{AgentEvent, InboundMessage};
 use grok_app::attachments::{build_prompt_blocks, from_bytes, from_paste_payload};
+use grok_app::config::{auth_credentials_changed, is_authentication_required_error, AuthFileStamp};
+
+#[test]
+fn authentication_runtime_errors_are_detected_without_false_positives() {
+    assert!(is_authentication_required_error(
+        "prompt failed: RPC -32000: Authentication required"
+    ));
+    assert!(is_authentication_required_error(
+        "not authenticated; please log in"
+    ));
+    assert!(!is_authentication_required_error(
+        "RPC -32000: session binding mismatch"
+    ));
+}
+
+#[test]
+fn credential_stamp_change_detects_login_after_agent_start() {
+    let before = AuthFileStamp {
+        len: 1200,
+        modified: Some(std::time::SystemTime::UNIX_EPOCH),
+    };
+    let after = AuthFileStamp {
+        len: 1727,
+        modified: Some(std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(30)),
+    };
+    assert!(!auth_credentials_changed(Some(&before), Some(&before)));
+    assert!(auth_credentials_changed(Some(&before), Some(&after)));
+    assert!(auth_credentials_changed(None, Some(&after)));
+}
 
 #[test]
 fn inbound_request_not_misparsed_as_response() {

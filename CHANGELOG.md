@@ -2,6 +2,20 @@
 
 All notable changes to **Grok Desktop** (`qingchencloud/grok-app`) are documented here.
 
+## [0.1.6] — 2026-07-29
+
+### Added
+- In-app **Share Grok Desktop** dialog from the sidebar and Settings → About
+- Localized share copy with project homepage and latest Windows download links
+
+### Fixed
+- Logging in after the desktop agent has started now restarts the agent so it loads the new Grok CLI credentials
+- Runtime `Authentication required` responses now trigger a safe reconnect or return the client to the login guide instead of leaving chat unusable
+- The Windows executable now embeds the Grok application icon, so installed taskbar and shortcut entries no longer fall back to the generic window icon
+
+### Notes
+- Install with **`GrokDesktop-Setup-0.1.6-windows-x64.exe`** to upgrade the existing per-user installation
+
 ## [0.1.5] — 2026-07-29
 
 ### Fixed

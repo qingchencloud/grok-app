@@ -1,7 +1,8 @@
 [package]
 name = "grok_app"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
+build = "build.rs"
 description = "Grok App / Grok Desktop — unofficial native GUI over the official Grok Build CLI (ACP)"
 license = "MIT"
 readme = "README.md"
@@ -58,6 +59,14 @@ windows-sys = { version = "0.59", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1.12"
+
+[package.metadata.winres]
+OriginalFilename = "GrokDesktop.exe"
+ProductName = "Grok Desktop"
+FileDescription = "Grok Desktop - visual client for the Grok CLI"
 
 [profile.release]
 lto = true

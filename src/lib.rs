@@ -14,6 +14,7 @@ pub mod local;
 pub mod models_cache;
 pub mod session_fsm;
 pub mod session_store;
+pub mod share;
 pub mod spawn_util;
 pub mod stream;
 pub mod ui;

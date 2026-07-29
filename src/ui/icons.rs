@@ -277,6 +277,7 @@ pub fn icon_btn(ui: &mut Ui, kind: IconKind, tip: &str) -> Response {
 pub enum IconKind {
     Plus,
     Settings,
+    Share,
     Sidebar,
     SidebarOpen,
     ChevronLeft,
@@ -338,6 +339,20 @@ fn draw_kind(ui: &mut Ui, kind: IconKind, rect: Rect, color: Color32) {
                 let outer = Pos2::new(c.x + a.cos() * r_out, c.y + a.sin() * r_out);
                 line_cap(painter, inner, outer, s);
                 let _ = (a0, a2);
+            }
+        }
+
+        IconKind::Share => {
+            // Three connected nodes — familiar share glyph with the same
+            // rounded stroke language as the rest of the sidebar icons.
+            let left = Pos2::new(nx(0.27), c.y);
+            let top = Pos2::new(nx(0.71), ny(0.25));
+            let bottom = Pos2::new(nx(0.71), ny(0.75));
+            line_cap(painter, left, top, s);
+            line_cap(painter, left, bottom, s);
+            let node_r = w * 0.105;
+            for node in [left, top, bottom] {
+                painter.circle_filled(node, node_r + s.width * 0.35, color);
             }
         }
 

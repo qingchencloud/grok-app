@@ -330,6 +330,37 @@ pub fn grok_home() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".grok"))
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthFileStamp {
+    pub len: u64,
+    pub modified: Option<std::time::SystemTime>,
+}
+
+/// Metadata-only credential snapshot. Never reads or exposes token contents.
+pub fn auth_file_stamp() -> Option<AuthFileStamp> {
+    let path = grok_home()?.join("auth.json");
+    let metadata = std::fs::metadata(path).ok()?;
+    Some(AuthFileStamp {
+        len: metadata.len(),
+        modified: metadata.modified().ok(),
+    })
+}
+
+pub fn auth_credentials_changed(
+    before: Option<&AuthFileStamp>,
+    after: Option<&AuthFileStamp>,
+) -> bool {
+    before != after
+}
+
+pub fn is_authentication_required_error(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("authentication required")
+        || lower.contains("not authenticated")
+        || lower.contains("please log in")
+        || lower.contains("please login")
+}
+
 pub fn is_cli_authenticated() -> bool {
     if std::env::var("XAI_API_KEY")
         .map(|k| !k.trim().is_empty())

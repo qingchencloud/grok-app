@@ -211,6 +211,8 @@ pub struct SettingsActions {
     pub check_updates: bool,
     /// Open the update / changelog modal.
     pub open_update_modal: bool,
+    /// Open the product sharing modal.
+    pub open_share: bool,
 }
 
 pub fn draw_settings(
@@ -230,6 +232,7 @@ pub fn draw_settings(
         apply_theme: false,
         check_updates: false,
         open_update_modal: false,
+        open_share: false,
     };
 
     let mut open = state.open;
@@ -1636,6 +1639,18 @@ fn tab_about(
         ui.hyperlink_to(s.link_grok_build, "https://github.com/xai-org/grok-build");
         ui.hyperlink_to(s.ref_client, "https://github.com/qingchencloud/grok-app");
         ui.hyperlink_to(s.update_open_releases, crate::update::RELEASES_URL);
+    });
+
+    section(ui, s.share, s.share_modal_subtitle, |ui| {
+        ui.label(
+            RichText::new(s.share_description)
+                .size(13.0)
+                .color(theme::TEXT_2()),
+        );
+        ui.add_space(8.0);
+        if primary_button(ui, s.share, true).clicked() {
+            actions.open_share = true;
+        }
     });
 
     section(ui, s.capabilities, "", |ui| {

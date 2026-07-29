@@ -56,11 +56,11 @@ async fn main() {
                     got_tool_or_thought = true;
                     println!("\n[tool] {title} ({kind})");
                 }
-                AgentEvent::PromptFinished { stop_reason } => {
+                AgentEvent::PromptFinished { stop_reason, .. } => {
                     println!("\n[finished] {stop_reason}");
                     break;
                 }
-                AgentEvent::Error { message } => {
+                AgentEvent::Error { message, .. } => {
                     eprintln!("\n[error] {message}");
                     break;
                 }

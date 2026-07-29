@@ -2,8 +2,9 @@ use crate::acp::parse::build_history_bootstrap;
 use crate::acp::{AcpClient, AgentEvent, ChatImage, PermissionOption, TimelineItem};
 use crate::attachments::{self, PendingImage};
 use crate::config::{
-    effort_label, is_cli_authenticated, normalize_effort, resolve_grok_binary, AgentMode,
-    AppConfig, MODELS,
+    auth_credentials_changed, auth_file_stamp, effort_label, is_authentication_required_error,
+    is_cli_authenticated, normalize_effort, resolve_grok_binary, AgentMode, AppConfig,
+    AuthFileStamp, MODELS,
 };
 use crate::desktop_notify;
 use crate::desktop_tray::{AppTray, TrayAction};
@@ -124,6 +125,13 @@ pub struct GrokApp {
     /// First-run/update gate: Grok CLI must exist and be authenticated.
     onboarding_open: bool,
     login_started: bool,
+    login_rx: Option<std_mpsc::Receiver<Result<(), String>>>,
+    /// Credential metadata captured immediately before `grok login`.
+    login_auth_stamp: Option<AuthFileStamp>,
+    /// Credential metadata inherited by the currently running agent.
+    agent_auth_stamp: Option<AuthFileStamp>,
+    /// Runtime ACP rejection overrides a merely-present auth.json.
+    runtime_auth_rejected: bool,
     last_readiness_probe: Option<std::time::Instant>,
 
     /// Grok Imagine (xAI Images API) session-only state.
@@ -134,6 +142,10 @@ pub struct GrokApp {
     image_resolution: String,
     image_generating: bool,
     image_generation_rx: Option<std_mpsc::Receiver<ImageGenerationEvent>>,
+
+    /// Product share card shown from the sidebar or Settings → About.
+    share_open: bool,
+    share_copied: bool,
 
     md_cache: CommonMarkCache,
 
@@ -271,6 +283,10 @@ impl GrokApp {
             install_rx: None,
             onboarding_open: false,
             login_started: false,
+            login_rx: None,
+            login_auth_stamp: None,
+            agent_auth_stamp: None,
+            runtime_auth_rejected: false,
             last_readiness_probe: None,
             image_generation_open: false,
             image_api_key: std::env::var("XAI_API_KEY").unwrap_or_default(),
@@ -279,6 +295,8 @@ impl GrokApp {
             image_resolution: "1k".into(),
             image_generating: false,
             image_generation_rx: None,
+            share_open: false,
+            share_copied: false,
             md_cache: CommonMarkCache::default(),
             smooth_assistant: SmoothStream::default(),
             smooth_thought: SmoothStream::default(),
@@ -601,7 +619,7 @@ impl GrokApp {
     fn readiness(&self) -> (bool, bool) {
         (
             resolve_grok_binary(&self.config.grok_path).is_ok(),
-            is_cli_authenticated(),
+            is_cli_authenticated() && !self.runtime_auth_rejected,
         )
     }
 
@@ -620,6 +638,17 @@ impl GrokApp {
         }
         self.last_readiness_probe = Some(std::time::Instant::now());
         self.settings.cli_status = probe_status_fast(&self.config.grok_path);
+        let credentials_present = self.settings.cli_status.authenticated;
+        let credentials_updated = self.login_started
+            && credentials_present
+            && auth_credentials_changed(self.login_auth_stamp.as_ref(), auth_file_stamp().as_ref());
+        if credentials_updated {
+            self.complete_grok_login(ctx);
+            return;
+        }
+        if self.runtime_auth_rejected {
+            self.settings.cli_status.authenticated = false;
+        }
         let installed = self.settings.cli_status.installed;
         let authenticated = self.settings.cli_status.authenticated;
         if installed && authenticated {
@@ -631,6 +660,55 @@ impl GrokApp {
             }
         } else if !self.settings.open {
             self.onboarding_open = true;
+        }
+        ctx.request_repaint();
+    }
+
+    fn complete_grok_login(&mut self, ctx: &egui::Context) {
+        self.login_started = false;
+        self.login_rx = None;
+        self.login_auth_stamp = None;
+        self.runtime_auth_rejected = false;
+        self.settings.cli_status = probe_status_fast(&self.config.grok_path);
+        self.onboarding_open = false;
+        self.status = crate::i18n::t().connecting_ellipsis.into();
+        // Reconnect even when the old agent reports Connected: it was spawned
+        // before login and does not reload auth.json at runtime.
+        self.pending_connect = true;
+        self.last_readiness_probe = Some(std::time::Instant::now());
+        self.logs
+            .push("登录凭据已更新，正在重启 Agent 以加载新认证".into());
+        ctx.request_repaint();
+    }
+
+    fn poll_login(&mut self, ctx: &egui::Context) {
+        let result = match self.login_rx.as_ref().map(|rx| rx.try_recv()) {
+            Some(Ok(result)) => Some(result),
+            Some(Err(std_mpsc::TryRecvError::Disconnected)) => {
+                Some(Err("grok login process channel disconnected".into()))
+            }
+            _ => None,
+        };
+        let Some(result) = result else {
+            return;
+        };
+        self.login_rx = None;
+
+        if result.is_ok() && is_cli_authenticated() {
+            self.complete_grok_login(ctx);
+            return;
+        }
+
+        self.login_started = false;
+        self.login_auth_stamp = None;
+        self.settings.cli_status = probe_status_fast(&self.config.grok_path);
+        if self.runtime_auth_rejected {
+            self.settings.cli_status.authenticated = false;
+        }
+        self.onboarding_open = true;
+        if let Err(message) = result {
+            self.error_banner = Some(message.clone());
+            self.logs.push(format!("登录进程失败: {message}"));
         }
         ctx.request_repaint();
     }
@@ -739,6 +817,11 @@ impl GrokApp {
             if let Some(tag) = self.update.latest.as_ref().map(|r| r.tag.clone()) {
                 self.update.selected_tag = Some(tag);
             }
+        }
+        if actions.open_share {
+            self.settings.open = false;
+            self.share_open = true;
+            self.share_copied = false;
         }
         if actions.save_config {
             self.apply_settings_to_config();
@@ -1018,6 +1101,7 @@ impl GrokApp {
         self.agent_pid = None;
         self.status = crate::i18n::t().connecting_ellipsis.into();
         self.error_banner = None;
+        self.agent_auth_stamp = auth_file_stamp();
 
         let generation = self.connect_generation.fetch_add(1, Ordering::SeqCst) + 1;
         let old_client = self.client.lock().take();
@@ -1806,6 +1890,9 @@ impl GrokApp {
     }
 
     fn run_grok_login(&mut self) {
+        if self.login_started {
+            return;
+        }
         let bin = match resolve_grok_binary(&self.config.grok_path) {
             Ok(b) => b,
             Err(e) => {
@@ -1815,22 +1902,50 @@ impl GrokApp {
         };
         self.onboarding_open = true;
         self.login_started = true;
+        self.login_auth_stamp = auth_file_stamp();
         self.last_readiness_probe = None;
         self.logs.push(format!("启动登录: {} login", bin.display()));
         // Interactive login needs a real console window (not hidden).
         // CREATE_NEW_CONSOLE so it doesn't steal/flash the GUI's console.
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
-            let _ = std::process::Command::new(&bin)
-                .arg("login")
-                .creation_flags(CREATE_NEW_CONSOLE)
-                .spawn();
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = std::process::Command::new(&bin).arg("login").spawn();
+        let spawn_result = {
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+                std::process::Command::new(&bin)
+                    .arg("login")
+                    .creation_flags(CREATE_NEW_CONSOLE)
+                    .spawn()
+            }
+            #[cfg(not(windows))]
+            {
+                std::process::Command::new(&bin).arg("login").spawn()
+            }
+        };
+        match spawn_result {
+            Ok(mut child) => {
+                let (tx, rx) = std_mpsc::channel();
+                self.login_rx = Some(rx);
+                std::thread::spawn(move || {
+                    let result = child
+                        .wait()
+                        .map_err(|e| format!("wait for grok login: {e}"))
+                        .and_then(|status| {
+                            if status.success() {
+                                Ok(())
+                            } else {
+                                Err(format!("grok login exited with {status}"))
+                            }
+                        });
+                    let _ = tx.send(result);
+                });
+            }
+            Err(e) => {
+                self.login_started = false;
+                self.login_auth_stamp = None;
+                self.error_banner = Some(format!("启动 grok login 失败: {e}"));
+                return;
+            }
         }
         self.status = crate::i18n::t().status_login_opened.into();
     }
@@ -2232,6 +2347,7 @@ impl GrokApp {
                         .push(format!("turn_completed observed: {stop_reason}"));
                 }
                 AgentEvent::Error { message, turn_gen } => {
+                    let authentication_required = is_authentication_required_error(&message);
                     // Stale prompt error after user already unlocked / started a new turn
                     if let Some(g) = turn_gen {
                         if !self.store.is_turn_gen(g) && self.store.busy() {
@@ -2266,6 +2382,30 @@ impl GrokApp {
                         id: Uuid::new_v4().to_string(),
                         text: format!("⚠ {message}"),
                     });
+                    if authentication_required {
+                        let current_stamp = auth_file_stamp();
+                        let credentials_updated = auth_credentials_changed(
+                            self.agent_auth_stamp.as_ref(),
+                            current_stamp.as_ref(),
+                        ) && is_cli_authenticated();
+                        if credentials_updated {
+                            // The login happened after this agent started. Replace
+                            // the stale child immediately; the next send is usable.
+                            self.runtime_auth_rejected = false;
+                            self.pending_connect = true;
+                            self.status = crate::i18n::t().connecting_ellipsis.into();
+                            self.logs
+                                .push("Agent 使用旧认证，检测到新凭据后自动重新连接".into());
+                        } else {
+                            // auth.json may still contain expired credentials.
+                            self.runtime_auth_rejected = true;
+                            self.settings.cli_status.authenticated = false;
+                            self.settings.tab = SettingsTab::Cli;
+                            self.onboarding_open = true;
+                            self.logs
+                                .push("Agent 拒绝现有认证，已切换为未登录状态".into());
+                        }
+                    }
                 }
                 AgentEvent::AgentExited { code, pid } => {
                     // Ignore stale exits from a previous agent after reconnect.
@@ -2864,6 +3004,147 @@ impl GrokApp {
         }
     }
 
+    fn ui_share(&mut self, ctx: &egui::Context) {
+        if !self.share_open {
+            return;
+        }
+
+        let s = crate::i18n::t();
+        let modal = egui::Modal::new(egui::Id::new("modal_share_product"))
+            .backdrop_color(theme::modal_scrim())
+            .frame(
+                Frame::NONE
+                    .fill(theme::SURFACE())
+                    .stroke(Stroke::new(1.0, theme::BORDER()))
+                    .shadow(theme::card_shadow())
+                    .corner_radius(18)
+                    .inner_margin(Margin::same(0)),
+            )
+            .show(ctx, |ui| {
+                let available = (ctx.screen_rect().width() - 32.0).max(300.0);
+                ui.set_width(520.0_f32.min(available));
+
+                let mut close_clicked = false;
+                let mut copy_clicked = false;
+                let mut download_clicked = false;
+
+                Frame::NONE
+                    .inner_margin(Margin::symmetric(22, 17))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            icons::grok_logo(ui, 28.0);
+                            ui.add_space(5.0);
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new(s.share_modal_title)
+                                        .size(17.0)
+                                        .strong()
+                                        .color(theme::TEXT()),
+                                );
+                                ui.label(
+                                    RichText::new(s.share_modal_subtitle)
+                                        .size(11.5)
+                                        .color(theme::TEXT_3()),
+                                );
+                            });
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if widgets::icon_btn(ui, IconKind::Close, s.cancel).clicked() {
+                                    close_clicked = true;
+                                }
+                            });
+                        });
+                    });
+
+                hairline(ui);
+
+                Frame::NONE
+                    .inner_margin(Margin::symmetric(22, 20))
+                    .show(ui, |ui| {
+                        ui.label(
+                            RichText::new(s.share_description)
+                                .size(13.5)
+                                .color(theme::TEXT_2()),
+                        );
+                        ui.add_space(16.0);
+
+                        let link_card = |ui: &mut Ui, title: &str, url: &str| {
+                            Frame::NONE
+                                .fill(theme::SURFACE_2())
+                                .stroke(Stroke::new(1.0, theme::BORDER()))
+                                .corner_radius(12)
+                                .inner_margin(Margin::symmetric(14, 11))
+                                .show(ui, |ui| {
+                                    ui.set_width(ui.available_width());
+                                    ui.label(
+                                        RichText::new(title)
+                                            .size(11.0)
+                                            .strong()
+                                            .color(theme::TEXT_3()),
+                                    );
+                                    ui.add_space(3.0);
+                                    ui.hyperlink_to(
+                                        RichText::new(url).size(12.0).color(theme::ACCENT()),
+                                        url,
+                                    );
+                                });
+                        };
+
+                        link_card(ui, s.share_homepage, crate::share::HOMEPAGE_URL);
+                        ui.add_space(8.0);
+                        link_card(ui, s.share_download_page, crate::share::DOWNLOAD_URL);
+                    });
+
+                hairline(ui);
+
+                Frame::NONE
+                    .inner_margin(Margin::symmetric(22, 14))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            if self.share_copied {
+                                ui.label(
+                                    RichText::new(s.share_copied)
+                                        .size(12.0)
+                                        .color(theme::SUCCESS()),
+                                );
+                            }
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if primary_button(
+                                    ui,
+                                    if self.share_copied {
+                                        s.share_copied
+                                    } else {
+                                        s.share_copy
+                                    },
+                                    true,
+                                )
+                                .clicked()
+                                {
+                                    copy_clicked = true;
+                                }
+                                if ghost_button(ui, s.share_open_download).clicked() {
+                                    download_clicked = true;
+                                }
+                            });
+                        });
+                    });
+
+                (close_clicked, copy_clicked, download_clicked)
+            });
+
+        let (close_clicked, copy_clicked, download_clicked) = modal.inner;
+        if copy_clicked {
+            ctx.copy_text(crate::share::share_text(crate::i18n::current_locale()));
+            self.share_copied = true;
+        }
+        if download_clicked {
+            crate::spawn_util::open_url(crate::share::DOWNLOAD_URL);
+        }
+        if close_clicked || modal.should_close() {
+            self.share_open = false;
+            self.share_copied = false;
+        }
+    }
+
     fn open_settings(&mut self) {
         self.settings.open = true;
         self.settings.sync_from(&self.config);
@@ -2891,6 +3172,10 @@ impl GrokApp {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if widgets::icon_btn(ui, IconKind::Settings, crate::i18n::t().settings).clicked() {
                     self.open_settings();
+                }
+                if widgets::icon_btn(ui, IconKind::Share, crate::i18n::t().share).clicked() {
+                    self.share_open = true;
+                    self.share_copied = false;
                 }
             });
         });
@@ -5860,6 +6145,7 @@ impl eframe::App for GrokApp {
         self.heal_tool_display_only();
         self.reconcile_idle_display();
         self.poll_install(ctx);
+        self.poll_login(ctx);
         self.poll_image_generation(ctx);
         self.poll_readiness(ctx);
         self.poll_update_check(ctx);
@@ -5950,6 +6236,7 @@ impl eframe::App for GrokApp {
         self.ui_archive_panel(ctx);
         self.ui_import_panel(ctx);
         self.ui_image_generation(ctx);
+        self.ui_share(ctx);
         self.ui_image_preview(ctx);
         self.ui_onboarding(ctx);
     }
