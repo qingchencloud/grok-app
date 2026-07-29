@@ -353,8 +353,12 @@
       display: block;
       object-fit: contain;
     }
+    .logo-mark .app-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+    }
     /* PNG logo is light; invert for light theme so it stays readable */
-    [data-theme="light"] .logo-mark img,
     [data-theme="light"] .av.g img,
     [data-theme="light"] .brand-logo-img {
       filter: invert(1);
@@ -1330,6 +1334,387 @@
       font-size: 14px;
     }
     .skip-link:focus { left: 0; }
+
+    /* Responsive navigation + small-screen polish */
+    .nav-menu-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      display: none;
+      place-items: center;
+      color: var(--text-2);
+      transition: color 0.2s, border-color 0.2s, background 0.2s;
+    }
+    .nav-menu-btn:hover {
+      color: var(--text);
+      border-color: var(--line-strong);
+      background: var(--surface-2);
+    }
+    .nav-menu-btn svg {
+      width: 20px;
+      height: 20px;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .nav-menu-btn .icon-close {
+      position: absolute;
+      opacity: 0;
+      transform: rotate(-30deg) scale(0.8);
+    }
+    .site-header.nav-open .nav-menu-btn .icon-menu {
+      opacity: 0;
+      transform: rotate(30deg) scale(0.8);
+    }
+    .site-header.nav-open .nav-menu-btn .icon-close {
+      opacity: 1;
+      transform: none;
+    }
+    .mobile-menu-actions { display: none; }
+    section[id] { scroll-margin-top: 88px; }
+
+    @media (max-width: 919.98px) {
+      .site-header {
+        padding-top: env(safe-area-inset-top);
+        box-shadow: 0 1px 0 var(--line);
+      }
+      .nav {
+        height: 64px;
+        gap: 10px;
+      }
+      .logo {
+        min-width: 0;
+        min-height: 44px;
+        align-items: center;
+      }
+      .logo-text {
+        min-width: 0;
+        display: grid;
+      }
+      .logo-text > span:first-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .nav-actions { gap: 8px; }
+      .lang-btn,
+      .theme-btn {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        padding-inline: 6px;
+        border-radius: 12px;
+      }
+      .header-github,
+      .header-download { display: none; }
+      .glow-orb { display: none; }
+      .nav-menu-btn { display: grid; position: relative; flex: 0 0 auto; }
+      .mobile-nav-shell { position: relative; }
+      .mobile-nav {
+        display: none;
+        position: absolute;
+        top: 8px;
+        left: 0;
+        right: 0;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        overflow: visible;
+        padding: 12px;
+        margin: 0;
+        border: 1px solid var(--line-strong);
+        border-radius: 18px;
+        background: var(--bg-elevated);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+        backdrop-filter: blur(24px) saturate(1.2);
+        -webkit-backdrop-filter: blur(24px) saturate(1.2);
+      }
+      .site-header.nav-open .mobile-nav { display: grid; }
+      .mobile-nav > a {
+        min-height: 44px;
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: var(--surface);
+        font-size: 13px;
+      }
+      .mobile-nav > a:hover,
+      .mobile-nav > a.active {
+        border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+        background: var(--accent-soft);
+      }
+      .mobile-menu-actions {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        gap: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--line);
+      }
+      .mobile-menu-actions .btn {
+        width: 100%;
+        min-height: 46px;
+        border-radius: 12px;
+      }
+      section[id] { scroll-margin-top: 76px; }
+    }
+
+    @media (min-width: 600px) and (max-width: 919.98px) {
+      .mobile-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 599.98px) {
+      .mobile-nav > a:nth-child(5) { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 719.98px) {
+      .wrap { width: min(100% - 32px, 1180px); }
+      .fx-grid {
+        background-size: 40px 40px;
+        opacity: 0.72;
+      }
+      #particles { display: none; }
+      .blob {
+        filter: blur(96px);
+        opacity: 0.65;
+      }
+      .blob-a {
+        width: 330px;
+        height: 330px;
+        top: -90px;
+        left: -150px;
+      }
+      .blob-b {
+        width: 300px;
+        height: 300px;
+        right: -170px;
+      }
+      .blob-c { display: none; }
+
+      .hero {
+        padding: 48px 0 16px;
+      }
+      .hero-grid { gap: 32px; }
+      .pill {
+        max-width: 100%;
+        margin-bottom: 18px;
+        padding: 7px 11px 7px 8px;
+        line-height: 1.4;
+      }
+      .hero h1 {
+        max-width: 11ch;
+        margin-bottom: 16px;
+        font-size: clamp(2.3rem, 11.5vw, 3.2rem);
+        letter-spacing: -0.045em;
+      }
+      .hero-lead {
+        margin-bottom: 24px;
+        font-size: 1rem;
+        line-height: 1.72;
+      }
+      .hero-lead code { overflow-wrap: anywhere; }
+      .hero-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-bottom: 22px;
+      }
+      .hero-actions .btn {
+        width: 100%;
+        min-height: 52px;
+      }
+      .hero-meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .meta-chip {
+        min-width: 0;
+        min-height: 42px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        line-height: 1.25;
+      }
+      .hero-visual { animation: none; }
+      .product {
+        border-radius: 18px;
+        animation: none;
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+      }
+      .product-bar {
+        height: 40px;
+        padding-inline: 12px;
+      }
+      .product-title { font-size: 10px; }
+      .product-body { min-height: 318px; }
+      .p-top { padding: 9px 10px; }
+      .p-canvas {
+        padding: 20px 12px;
+        gap: 10px;
+      }
+      .stream-line { gap: 8px; }
+      .bubble {
+        padding: 9px 10px;
+        font-size: 12px;
+      }
+      .p-composer { padding: 10px; }
+      .composer-fake {
+        min-height: 42px;
+        padding-inline: 8px;
+      }
+      .stats {
+        margin-top: 24px;
+        border-radius: 16px;
+      }
+      .stat { padding: 16px; }
+      .stat-v {
+        font-size: clamp(1rem, 4.8vw, 1.18rem);
+        overflow-wrap: anywhere;
+      }
+
+      section { padding: 64px 0; }
+      .section-head {
+        margin-bottom: 28px;
+      }
+      .section-head h2 {
+        margin-bottom: 10px;
+        font-size: clamp(1.85rem, 8vw, 2.3rem);
+      }
+      .section-head p {
+        font-size: 1rem;
+        line-height: 1.72;
+      }
+      .kicker { margin-bottom: 12px; }
+      .bento { gap: 12px; }
+      .bento-card {
+        padding: 20px;
+        border-radius: 18px;
+      }
+      .bento-card p {
+        max-width: none;
+        font-size: 14px;
+        line-height: 1.65;
+      }
+      .bento-visual {
+        min-height: 96px;
+        margin-top: 16px;
+      }
+      .path-row { gap: 6px; }
+      .path-node { padding: 7px 9px; }
+
+      .protocol { border-radius: 18px; }
+      .proto-step {
+        gap: 10px;
+        padding: 20px;
+      }
+      .proto-step p { line-height: 1.65; }
+
+      .showcase { gap: 12px; }
+      .show-main,
+      .show-side {
+        min-height: 0;
+        border-radius: 18px;
+      }
+      .show-main { padding: 22px 20px; }
+      .show-main h3 {
+        margin: 9px 0;
+        font-size: 1.35rem;
+      }
+      .show-main p {
+        max-width: none;
+        margin-bottom: 18px;
+      }
+      .show-stack {
+        gap: 10px;
+        padding: 0;
+      }
+      .mini-card {
+        padding: 18px;
+        border-radius: 16px;
+      }
+      .shot-gallery { margin-top: 28px; }
+      .shot-frame {
+        border-radius: 14px;
+        box-shadow: var(--shadow-sm);
+      }
+      .shot-cap {
+        align-items: flex-start;
+        padding: 12px 14px;
+        line-height: 1.5;
+      }
+
+      .deploy,
+      .deploy[style] {
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 12px;
+      }
+      .deploy-card {
+        padding: 22px 20px;
+        border-radius: 18px;
+      }
+      .deploy-card .btn { width: 100%; }
+      .code-wrap .code-block { padding-right: 72px; }
+      .code-block { font-size: 11.5px; }
+
+      .final { padding-bottom: 64px; }
+      .final-card {
+        padding: 34px 20px;
+        border-radius: 22px;
+      }
+      .final-card h2 { font-size: 1.85rem; }
+      .final-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .final-actions .btn { width: 100%; }
+      footer {
+        padding-bottom: calc(32px + env(safe-area-inset-bottom));
+      }
+      .footer-inner {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .footer-links {
+        gap: 10px 16px;
+      }
+    }
+
+    @media (max-width: 419.98px) {
+      .logo-sub { display: none; }
+      .brand-product { display: none; }
+      .logo-mark {
+        width: 30px;
+        height: 30px;
+      }
+      .logo-mark .app-icon { width: 30px; height: 30px; }
+      .nav-actions { gap: 6px; }
+      .lang-btn,
+      .theme-btn,
+      .nav-menu-btn {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+      }
+      .mobile-nav { left: -2px; right: -2px; }
+      .hero-meta .meta-chip:last-child { grid-column: 1 / -1; }
+      .p-top > span:nth-child(2) { display: none; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .stat { min-width: 0; padding: 14px; }
+      .stat-k { margin-bottom: 6px; }
+      .deploy-num { font-size: 1.65rem; }
+    }
+
+    @media (hover: none) {
+      .bento-card:hover,
+      .deploy-card:hover,
+      .mini-card:hover,
+      .stat:hover {
+        transform: none;
+        box-shadow: none;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1347,10 +1732,10 @@
     <div class="wrap nav">
       <a class="logo" href="#top">
         <span class="logo-mark" aria-hidden="true" title="Grok">
-          <img class="brand-logo-img" src="assets/logo.png" width="26" height="24" alt="" />
+          <img class="app-icon" src="assets/icon-32.png" width="32" height="32" alt="" />
         </span>
         <span class="logo-text">
-          <span>Grok Desktop</span>
+          <span><span class="brand-name">Grok</span> <span class="brand-product">Desktop</span></span>
           <span class="logo-sub">QingChen Cloud</span>
         </span>
       </a>
@@ -1367,16 +1752,25 @@
           <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5z"/></svg>
           <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
         </button>
-        <a class="btn btn-ghost" href="https://github.com/qingchencloud/grok-app" target="_blank" rel="noopener noreferrer">GitHub</a>
-        <a class="btn btn-primary" href="#download" data-i18n="nav.download">下载</a>
+        <a class="btn btn-ghost header-github" href="https://github.com/qingchencloud/grok-app" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a class="btn btn-primary header-download" href="#download" data-i18n="nav.download">下载</a>
+        <button class="nav-menu-btn" id="nav-menu-toggle" type="button" aria-controls="mobile-nav" aria-expanded="false" aria-label="打开导航">
+          <svg class="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          <svg class="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
       </div>
     </div>
-    <div class="wrap">
-      <nav class="mobile-nav" aria-label="Mobile" data-i18n-aria="nav.mobile">
+    <div class="wrap mobile-nav-shell">
+      <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile" data-i18n-aria="nav.mobile">
         <a href="#features" data-nav data-i18n="nav.features">功能</a>
         <a href="#protocol" data-nav data-i18n="nav.protocol">架构</a>
+        <a href="#surface" data-nav data-i18n="nav.surface">界面</a>
         <a href="#download" data-nav data-i18n="nav.download">下载</a>
         <a href="#start" data-nav data-i18n="nav.start">开始</a>
+        <div class="mobile-menu-actions">
+          <a class="btn btn-ghost" href="https://github.com/qingchencloud/grok-app" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a class="btn btn-primary" href="#download" data-menu-close data-i18n="nav.download">下载</a>
+        </div>
       </nav>
     </div>
   </header>
@@ -1825,6 +2219,26 @@ cargo build --release</pre>
           "nav.start": "开始",
           "nav.download": "下载",
           "nav.top": "顶部",
+          "nav.menu": "打开导航",
+          "nav.close": "关闭导航",
+          "dl.kicker": "下载",
+          "dl.title": "下载客户端",
+          "dl.desc": "Windows 推荐安装包：下载后双击即可安装，无需解压。macOS 提供独立可执行文件。",
+          "dl.winTitle": "Windows 安装包",
+          "dl.winDesc": "Setup.exe · 双击安装 · 无需管理员权限",
+          "dl.winCta": "下载 Setup.exe",
+          "dl.winPortable": "便携版 .exe",
+          "dl.macTitle": "macOS",
+          "dl.macDesc": "独立二进制，下载后直接运行",
+          "dl.macCta": "下载 macOS 版",
+          "dl.allTitle": "全部版本",
+          "dl.allDesc": "GitHub Releases 历史版本与校验文件",
+          "dl.allCta": "打开 Releases",
+          "dl.note": "需要先安装官方 Grok CLI 并执行 grok login。",
+          "dl.fetching": "正在获取最新版本…",
+          "footer.by": "晴辰云 QingChen Cloud · 非官方 · 开源",
+          "footer.releases": "Releases",
+          "footer.docs": "文档",
           "shot.enLabel": "English UI",
           "shot.zhLabel": "中文界面",
           "shot.caption": "侧栏 · 模型条 · 建议卡片 · 输入区",
@@ -1929,6 +2343,26 @@ cargo build --release</pre>
           "nav.start": "Get started",
           "nav.download": "Download",
           "nav.top": "Top",
+          "nav.menu": "Open navigation",
+          "nav.close": "Close navigation",
+          "dl.kicker": "Download",
+          "dl.title": "Get the client",
+          "dl.desc": "Windows: download Setup.exe and double-click to install — no zip. macOS: single binary.",
+          "dl.winTitle": "Windows installer",
+          "dl.winDesc": "Setup.exe · one-click install · no admin required",
+          "dl.winCta": "Download Setup.exe",
+          "dl.winPortable": "Portable .exe",
+          "dl.macTitle": "macOS",
+          "dl.macDesc": "Single binary — download and run",
+          "dl.macCta": "Download macOS build",
+          "dl.allTitle": "All releases",
+          "dl.allDesc": "GitHub Releases, older versions, checksums",
+          "dl.allCta": "Open Releases",
+          "dl.note": "You still need the official Grok CLI and grok login.",
+          "dl.fetching": "Fetching latest version…",
+          "footer.by": "by QingChen Cloud · unofficial · open source",
+          "footer.releases": "Releases",
+          "footer.docs": "Docs",
           "shot.enLabel": "English UI",
           "shot.zhLabel": "Chinese UI",
           "shot.caption": "Sidebar · model bar · chips · composer",
@@ -2183,6 +2617,12 @@ cargo build --release</pre>
           langBtn.setAttribute("aria-label", lang === "zh" ? "Switch to English" : "切换到中文");
           langBtn.setAttribute("title", lang === "zh" ? "English" : "中文");
         }
+        var menuBtn = document.getElementById("nav-menu-toggle");
+        if (menuBtn) {
+          var menuOpen = menuBtn.getAttribute("aria-expanded") === "true";
+          menuBtn.setAttribute("aria-label", t(lang, menuOpen ? "nav.close" : "nav.menu"));
+          menuBtn.setAttribute("title", t(lang, menuOpen ? "nav.close" : "nav.menu"));
+        }
 
         var ld = document.getElementById("json-ld");
         if (ld) {
@@ -2227,6 +2667,42 @@ cargo build --release</pre>
         });
       }
 
+      // Compact navigation for phone and tablet widths.
+      var siteHeader = document.querySelector(".site-header");
+      var menuToggle = document.getElementById("nav-menu-toggle");
+      var mobileNav = document.getElementById("mobile-nav");
+      function setMenu(open) {
+        if (!siteHeader || !menuToggle || !mobileNav) return;
+        siteHeader.classList.toggle("nav-open", open);
+        menuToggle.setAttribute("aria-expanded", open ? "true" : "false");
+        menuToggle.setAttribute("aria-label", t(currentLang, open ? "nav.close" : "nav.menu"));
+        menuToggle.setAttribute("title", t(currentLang, open ? "nav.close" : "nav.menu"));
+        mobileNav.setAttribute("aria-hidden", open ? "false" : "true");
+      }
+      if (menuToggle && mobileNav) {
+        setMenu(false);
+        menuToggle.addEventListener("click", function () {
+          setMenu(menuToggle.getAttribute("aria-expanded") !== "true");
+        });
+        mobileNav.querySelectorAll("a").forEach(function (link) {
+          link.addEventListener("click", function () { setMenu(false); });
+        });
+        document.addEventListener("keydown", function (event) {
+          if (event.key === "Escape" && siteHeader.classList.contains("nav-open")) {
+            setMenu(false);
+            menuToggle.focus();
+          }
+        });
+        document.addEventListener("pointerdown", function (event) {
+          if (siteHeader.classList.contains("nav-open") && !siteHeader.contains(event.target)) {
+            setMenu(false);
+          }
+        });
+        window.matchMedia("(min-width: 920px)").addEventListener("change", function (event) {
+          if (event.matches) setMenu(false);
+        });
+      }
+
       // Copy code blocks
       document.querySelectorAll("[data-copy-btn]").forEach(function (btn) {
         btn.addEventListener("click", function () {
@@ -2258,7 +2734,7 @@ cargo build --release</pre>
       });
 
       // Active nav on scroll
-      var sections = ["features", "protocol", "surface", "start"]
+      var sections = ["features", "protocol", "surface", "download", "start"]
         .map(function (id) { return document.getElementById(id); })
         .filter(Boolean);
       var navLinks = document.querySelectorAll("[data-nav]");
@@ -2277,7 +2753,7 @@ cargo build --release</pre>
       updateNav();
 
       // Magnetic particles (Google-style attraction + spring home)
-      if (reduce) return;
+      if (reduce || window.matchMedia("(max-width: 719.98px), (pointer: coarse)").matches) return;
       var canvas = document.getElementById("particles");
       if (!canvas) return;
       var ctx = canvas.getContext("2d", { alpha: true });
