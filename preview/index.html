@@ -8,8 +8,8 @@
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
   <meta name="googlebot" content="index, follow" />
   <meta name="author" content="QingChen Cloud" />
-  <meta name="keywords" content="Grok App, Grok Desktop, grok-app, QingChen Cloud, qingchencloud, unofficial Grok client, Grok Build CLI, ACP, Rust, egui, Windows, desktop AI agent" id="meta-keywords" />
-  <meta name="description" id="meta-description" content="Grok Desktop by QingChen Cloud — unofficial native client for Grok Build CLI (ACP). Sessions, tools, permissions. English & 中文. Open source on GitHub." />
+  <meta name="keywords" content="Grok Desktop, Grok CLI GUI, Grok CLI visual panel, grok-app, QingChen Cloud, Grok desktop client, Windows, macOS, desktop AI agent" id="meta-keywords" />
+  <meta name="description" id="meta-description" content="Grok Desktop turns the official Grok CLI into a native visual panel for sessions, models, images, and approvals—no commands to remember for everyday use." />
   <meta name="application-name" content="Grok Desktop" />
   <meta name="apple-mobile-web-app-title" content="Grok Desktop" />
   <meta name="format-detection" content="telephone=no" />
@@ -21,14 +21,14 @@
   <meta property="og:type" content="website" />
   <meta property="og:locale" id="og-locale" content="en_US" />
   <meta property="og:locale:alternate" id="og-locale-alt" content="zh_CN" />
-  <meta property="og:title" id="og-title" content="Grok Desktop — Unofficial client by QingChen Cloud" />
-  <meta property="og:description" id="og-description" content="Open-source desktop shell by QingChen Cloud over Grok Build CLI (ACP). Download Setup.exe from Releases." />
+  <meta property="og:title" id="og-title" content="Grok Desktop — A visual panel for Grok CLI" />
+  <meta property="og:description" id="og-description" content="Use Grok CLI through a native desktop interface. Sessions, models, images, and approvals stay in one window." />
   <meta property="og:url" id="og-url" content="" />
   <meta property="og:image" id="og-image" content="assets/logo.png" />
   <meta property="og:image:alt" content="Grok logo" />
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" id="tw-title" content="Grok Desktop — Native client for Grok Build CLI" />
-  <meta name="twitter:description" id="tw-description" content="Unofficial Grok Desktop by QingChen Cloud — open source on GitHub." />
+  <meta name="twitter:title" id="tw-title" content="Grok Desktop — Grok CLI, beyond the terminal" />
+  <meta name="twitter:description" id="tw-description" content="A native visual panel for the official Grok CLI. Open source by QingChen Cloud." />
   <meta name="twitter:image" id="tw-image" content="assets/logo.png" />
   <title id="doc-title">Grok Desktop · QingChen Cloud</title>
   <link rel="icon" href="assets/icon.ico" sizes="any" />
@@ -50,25 +50,26 @@
         "name": "Grok Desktop",
         "url": "https://qingchencloud.github.io/grok-app/",
         "inLanguage": ["en", "zh-CN"],
-        "description": "Native desktop client for the official Grok Build CLI."
+        "description": "A native visual desktop panel for the official Grok CLI."
       },
       {
         "@type": "SoftwareApplication",
         "@id": "#app",
         "name": "Grok Desktop",
-        "applicationCategory": "DeveloperApplication",
+        "applicationCategory": "ProductivityApplication",
         "operatingSystem": "Windows, macOS",
         "softwareVersion": "0.1.1",
         "license": "https://opensource.org/licenses/MIT",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-        "description": "Unofficial native GUI over Grok Build CLI via ACP stdio.",
+        "description": "Grok Desktop brings the official Grok CLI into a visual desktop interface for everyday use without command-line operations.",
         "featureList": [
-          "Agent connection via grok agent stdio",
-          "Streaming chat with tools and plans",
-          "Session scan and restore",
+          "Visual conversation workspace",
+          "Streaming responses, tools, and plans",
+          "Session browsing and restore",
+          "Model and project selection",
           "Image paste and drag-drop",
-          "Permission approvals",
-          "config.toml mapping"
+          "Visual permission approvals",
+          "In-app CLI status, install, and sign-in entry"
         ]
       },
       {
@@ -1781,34 +1782,34 @@
         <div>
           <div class="pill">
             <span class="pill-live" aria-hidden="true"></span>
-            <span data-i18n="hero.pill">晴辰云开源 · 非官方 · 基于 Grok Build CLI</span>
+            <span data-i18n="hero.pill">Grok CLI 可视化面板 · 原生桌面体验</span>
           </div>
           <h1 data-i18n-html="hero.title">
-            把 Agent<br />
-            放进 <span class="shine">原生窗口</span>
+            把 Grok CLI<br />
+            变成 <span class="shine">可视化面板</span>
           </h1>
           <p class="hero-lead" data-i18n-html="hero.lead">
-            由 <strong>晴辰云 QingChen Cloud</strong> 开源的非官方桌面客户端：经 ACP 连接本机官方 <code>grok agent</code>。仓库 <code>qingchencloud/grok-app</code>。
+            运行在官方 <strong>Grok CLI</strong> 之上的原生桌面面板。会话、模型、图片与权限都集中在一个窗口，日常使用无需记命令或守着终端。
           </p>
           <div class="hero-actions">
             <a class="btn btn-primary btn-lg" href="#download" id="hero-download">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-              <span data-i18n="hero.ctaPrimary">获取客户端</span>
+              <span data-i18n="hero.ctaPrimary">下载桌面版</span>
             </a>
-            <a class="btn btn-ghost btn-lg" href="#features" data-i18n="hero.ctaSecondary">浏览能力</a>
+            <a class="btn btn-ghost btn-lg" href="#surface" data-i18n="hero.ctaSecondary">看看界面</a>
           </div>
           <div class="hero-meta">
-            <span class="meta-chip"><i></i>Rust + egui</span>
-            <span class="meta-chip"><i></i>ACP / stdio</span>
-            <span class="meta-chip"><i></i>Windows first</span>
-            <span class="meta-chip"><i></i><span data-i18n="hero.chipSessions">与 TUI 共享会话</span></span>
+            <span class="meta-chip"><i></i><span data-i18n="hero.chipNoTerminal">日常无需命令行</span></span>
+            <span class="meta-chip"><i></i><span data-i18n="hero.chipSessions">会话可视管理</span></span>
+            <span class="meta-chip"><i></i><span data-i18n="hero.chipControls">模型与权限面板</span></span>
+            <span class="meta-chip"><i></i><span data-i18n="hero.chipLocal">本机 CLI 运行</span></span>
           </div>
         </div>
 
         <div class="hero-visual reveal">
           <div class="glow-orb a" aria-hidden="true"></div>
           <div class="glow-orb b" aria-hidden="true"></div>
-          <div class="product" aria-label="Grok Desktop 界面示意">
+          <div class="product" aria-label="Grok Desktop 界面示意" data-i18n-aria="mock.previewLabel">
             <div class="product-bar">
               <div class="traffic" aria-hidden="true"><span></span><span></span><span></span></div>
               <div class="product-title" style="display:inline-flex;align-items:center;justify-content:center;gap:8px">
@@ -1829,9 +1830,9 @@
                   </button>
                 </div>
                 <div class="p-new" data-i18n="mock.newChat">+ 新对话</div>
-                <div class="p-item on"><strong data-i18n="mock.s1">发布打包</strong><span data-i18n="mock.s1t">今天</span></div>
-                <div class="p-item"><strong data-i18n="mock.s2">会话恢复</strong><span data-i18n="mock.s2t">昨天</span></div>
-                <div class="p-item"><strong data-i18n="mock.s3">config 映射</strong><span data-i18n="mock.s3t">本周</span></div>
+                <div class="p-item on"><strong data-i18n="mock.s1">项目梳理</strong><span data-i18n="mock.s1t">今天</span></div>
+                <div class="p-item"><strong data-i18n="mock.s2">需求分析</strong><span data-i18n="mock.s2t">昨天</span></div>
+                <div class="p-item"><strong data-i18n="mock.s3">会话恢复</strong><span data-i18n="mock.s3t">本周</span></div>
                 <div class="p-status"><b data-i18n="mock.connected">● 已连接</b><br /><span class="mono" style="color:var(--text-3)">~/GrokApp</span></div>
               </aside>
               <div class="p-main">
@@ -1843,15 +1844,18 @@
                 <div class="p-canvas">
                   <div class="stream-line">
                     <div class="av u" data-i18n="mock.you">你</div>
-                    <div class="bubble user" data-i18n="mock.userMsg">打包 Windows 便携版并校验签名摘要。</div>
+                    <div class="bubble user" data-i18n="mock.userMsg">帮我梳理这个项目，并给出下一步建议。</div>
                   </div>
                   <div class="stream-line">
                     <div class="av g" title="Grok">
                       <img class="brand-logo-img" src="assets/logo.png" width="14" height="13" alt="" />
                     </div>
                     <div class="bubble">
-                      <span data-i18n="mock.botMsg">已连接本地 agent，准备执行 packaging 脚本。</span>
-                      <div class="tool-mini"><span class="ok">✓</span> run  build-release.ps1<br /><span class="ok">✓</span> sha256  dist/*.zip</div>
+                      <span data-i18n="mock.botMsg">已连接 Grok CLI，正在读取项目上下文。</span>
+                      <div class="tool-mini">
+                        <span class="ok">✓</span> <span data-i18n="mock.contextReady">项目上下文 · 已读取</span><br />
+                        <span class="ok">✓</span> <span data-i18n="mock.planReady">下一步建议 · 已整理</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1870,68 +1874,68 @@
         </div>
       </div>
 
-      <div class="stats reveal" aria-label="产品指标">
-        <div class="stat"><span class="stat-k" data-i18n="stats.version">Version</span><div class="stat-v">v0.1.0</div></div>
-        <div class="stat"><span class="stat-k" data-i18n="stats.runtime">Runtime</span><div class="stat-v">Grok CLI</div></div>
-        <div class="stat"><span class="stat-k" data-i18n="stats.protocol">Protocol</span><div class="stat-v">ACP JSON-RPC</div></div>
-        <div class="stat"><span class="stat-k" data-i18n="stats.auth">Auth</span><div class="stat-v">~/.grok</div></div>
+      <div class="stats reveal" aria-label="产品特点" data-i18n-aria="stats.label">
+        <div class="stat"><span class="stat-k" data-i18n="stats.interaction">交互</span><div class="stat-v" data-i18n="stats.interactionValue">全程 GUI</div></div>
+        <div class="stat"><span class="stat-k" data-i18n="stats.engine">核心</span><div class="stat-v" data-i18n="stats.engineValue">Grok CLI</div></div>
+        <div class="stat"><span class="stat-k" data-i18n="stats.session">会话</span><div class="stat-v" data-i18n="stats.sessionValue">可视管理</div></div>
+        <div class="stat"><span class="stat-k" data-i18n="stats.data">数据</span><div class="stat-v" data-i18n="stats.dataValue">本机保存</div></div>
       </div>
     </section>
 
     <section id="features">
       <div class="wrap">
         <div class="section-head reveal">
-          <div class="kicker" data-i18n="features.kicker">Capabilities</div>
-          <h2 data-i18n="features.title">主路径装进一个窗口</h2>
-          <p data-i18n="features.desc">连接、流式输出、会话恢复、图片与权限——聚焦每天都在用的能力，长尾命令仍回 CLI。</p>
+          <div class="kicker" data-i18n="features.kicker">可视化能力</div>
+          <h2 data-i18n="features.title">常用操作，都有清晰界面</h2>
+          <p data-i18n="features.desc">把 Grok CLI 的能力整理为可点击、可查看、可恢复的桌面工作流。</p>
         </div>
         <div class="bento">
           <article class="bento-card featured b1 reveal">
-            <span class="tag">Agent Link</span>
-            <h3 data-i18n="feat.agent.h">stdio 子进程，状态一眼可见</h3>
-            <p data-i18n-html="feat.agent.p">启动并托管 <code>grok agent stdio</code>，自动探测 CLI 路径。连接、就绪、断开都在界面层完成。</p>
+            <span class="tag" data-i18n="feat.agent.tag">快速开始</span>
+            <h3 data-i18n="feat.agent.h">打开即用的 CLI 面板</h3>
+            <p data-i18n-html="feat.agent.p">应用自动检查 Grok CLI 状态，提供安装与登录入口；连接、就绪与异常都直接显示在界面中。</p>
             <div class="path-row">
-              <span class="path-node on">Desktop</span>
+              <span class="path-node on" data-i18n="flow.open">打开面板</span>
               <span class="path-arrow">→</span>
-              <span class="path-node on">ACP</span>
+              <span class="path-node on" data-i18n="flow.pick">选择项目</span>
               <span class="path-arrow">→</span>
-              <span class="path-node on">grok agent</span>
+              <span class="path-node on" data-i18n="flow.chat">开始对话</span>
               <span class="path-arrow">→</span>
-              <span class="path-node">tools / MCP</span>
+              <span class="path-node" data-i18n="flow.result">查看结果</span>
             </div>
           </article>
           <article class="bento-card b2 reveal">
-            <span class="tag">Stream</span>
-            <h3 data-i18n="feat.stream.h">流式时间线</h3>
-            <p data-i18n="feat.stream.p">回复、思考、工具与计划实时渲染；生成中可停止。</p>
+            <span class="tag" data-i18n="feat.stream.tag">对话过程</span>
+            <h3 data-i18n="feat.stream.h">过程清晰可见</h3>
+            <p data-i18n="feat.stream.p">回复、思考、工具与计划实时呈现，生成中也能随时停止。</p>
             <div class="bento-visual">
               <div class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
             </div>
           </article>
           <article class="bento-card b3 reveal">
-            <span class="tag">Sessions</span>
-            <h3 data-i18n="feat.sess.h">会话扫描 / 恢复</h3>
-            <p data-i18n-html="feat.sess.p">读取 <code>~/.grok/sessions</code>，预览并 session/load，与 TUI 共享历史。</p>
+            <span class="tag" data-i18n="feat.sess.tag">会话中心</span>
+            <h3 data-i18n="feat.sess.h">历史会话随时恢复</h3>
+            <p data-i18n-html="feat.sess.p">按项目浏览本机会话，查看摘要并继续之前的任务，不用翻找命令记录。</p>
           </article>
           <article class="bento-card b4 reveal">
-            <span class="tag">Model · Cwd</span>
-            <h3 data-i18n="feat.model.h">顶栏控制</h3>
-            <p data-i18n="feat.model.p">模型下拉与工作目录切换，参数直接进入 session。</p>
+            <span class="tag" data-i18n="feat.model.tag">模型 · 项目</span>
+            <h3 data-i18n="feat.model.h">模型与项目一键选择</h3>
+            <p data-i18n="feat.model.p">从下拉菜单切换模型与工作目录，新会话的上下文一目了然。</p>
           </article>
           <article class="bento-card b5 reveal">
-            <span class="tag">Media</span>
-            <h3 data-i18n="feat.media.h">图片进 Agent</h3>
-            <p data-i18n="feat.media.p">粘贴、选文件、拖放 → ACP image 内容块。</p>
+            <span class="tag" data-i18n="feat.media.tag">图片</span>
+            <h3 data-i18n="feat.media.h">图片直接拖进对话</h3>
+            <p data-i18n="feat.media.p">支持粘贴、选择文件和拖放图片，像聊天软件一样自然。</p>
           </article>
           <article class="bento-card b6 reveal">
-            <span class="tag">Permissions</span>
-            <h3 data-i18n="feat.perm.h">审批与自动批准</h3>
-            <p data-i18n="feat.perm.p">工具调用可弹窗批准/拒绝，或开启 always-approve 模式。</p>
+            <span class="tag" data-i18n="feat.perm.tag">权限</span>
+            <h3 data-i18n="feat.perm.h">权限可视化确认</h3>
+            <p data-i18n="feat.perm.p">工具调用通过弹窗批准或拒绝，也可为信任场景开启自动批准。</p>
           </article>
           <article class="bento-card b7 reveal">
-            <span class="tag">Config · Ship</span>
-            <h3 data-i18n="feat.cfg.h">配置映射 + 一键安装 CLI + 发布打包</h3>
-            <p data-i18n-html="feat.cfg.p">设置页写入 <code>config.toml</code>（不覆盖无关项）；内置 CLI 安装入口；<code>packaging/</code> 产出便携包与 setup zip。</p>
+            <span class="tag" data-i18n="feat.cfg.tag">设置中心</span>
+            <h3 data-i18n="feat.cfg.h">一个页面管好所有选项</h3>
+            <p data-i18n-html="feat.cfg.p">语言、主题、托盘、通知、更新与 CLI 选项集中管理；需要时可在应用内检查和安装 CLI。</p>
           </article>
         </div>
       </div>
@@ -1940,34 +1944,34 @@
     <section id="protocol">
       <div class="wrap">
         <div class="section-head reveal">
-          <div class="kicker" data-i18n="arch.kicker">Architecture</div>
-          <h2 data-i18n="arch.title">三层分工，不抢运行时</h2>
-          <p data-i18n="arch.desc">桌面只做壳与交互；认证、模型、工具、MCP、skills 仍由官方 Grok CLI 提供（本项目不托管密钥）。</p>
+          <div class="kicker" data-i18n="arch.kicker">工作原理</div>
+          <h2 data-i18n="arch.title">你操作面板，CLI 在后台工作</h2>
+          <p data-i18n="arch.desc">Grok Desktop 不另造模型服务，只把官方 Grok CLI 变成桌面 GUI；日常使用不需要输入命令。</p>
         </div>
         <div class="protocol reveal">
           <div class="proto-step">
-            <div class="proto-id">01 · SHELL</div>
+            <div class="proto-id" data-i18n="arch.panel.id">01 · PANEL</div>
             <div>
-              <h3>Grok Desktop</h3>
-              <div class="sub">Rust · egui · Glow</div>
+              <h3 data-i18n="arch.panel.h">可视化面板</h3>
+              <div class="sub" data-i18n="arch.panel.sub">点选 · 输入 · 拖放</div>
             </div>
-            <p><span data-i18n-html="arch.shell.p">原生窗口、会话列表、聊天气泡、设置与权限弹窗。偏好写入 <code>%APPDATA%\GrokApp</code>。</span></p>
+            <p><span data-i18n-html="arch.shell.p">会话、模型、项目、图片与权限都在原生窗口中操作，日常无需打开终端。</span></p>
           </div>
           <div class="proto-step">
-            <div class="proto-id">02 · BRIDGE</div>
+            <div class="proto-id" data-i18n="arch.bridge.id">02 · BRIDGE</div>
             <div>
-              <h3>ACP over stdio</h3>
-              <div class="sub">JSON-RPC · session/*</div>
+              <h3 data-i18n="arch.bridge.h">后台连接</h3>
+              <div class="sub">ACP · JSON-RPC</div>
             </div>
-            <p><span data-i18n="arch.bridge.p">双向流：update、load、cancel、image blocks。桌面不直连 xAI HTTP 聊天接口。</span></p>
+            <p><span data-i18n="arch.bridge.p">面板在后台把操作交给 CLI，并把回复、进度和工具结果实时带回界面。</span></p>
           </div>
           <div class="proto-step">
-            <div class="proto-id">03 · RUNTIME</div>
+            <div class="proto-id" data-i18n="arch.engine.id">03 · ENGINE</div>
             <div>
-              <h3>Grok Build CLI</h3>
-              <div class="sub">agent · auth · tools</div>
+              <h3 data-i18n="arch.engine.h">官方 Grok CLI</h3>
+              <div class="sub" data-i18n="arch.engine.sub">登录 · 模型 · 工具</div>
             </div>
-            <p><span data-i18n-html="arch.runtime.p">本机 <code>grok</code> 负责登录态、模型路由、工具与 skills。与 TUI 同一套能力。</span></p>
+            <p><span data-i18n-html="arch.runtime.p">本机 Grok CLI 负责登录态、模型和工具能力；项目不托管你的密钥或另接聊天接口。</span></p>
           </div>
         </div>
       </div>
@@ -1976,42 +1980,42 @@
     <section id="surface">
       <div class="wrap">
         <div class="section-head reveal">
-          <div class="kicker" data-i18n="surface.kicker">Product surface</div>
-          <h2 data-i18n="surface.title">布局固定，心智不拆</h2>
-          <p data-i18n="surface.desc">侧栏会话 · 顶栏状态 · 时间线 · 输入区——和你已经熟悉的 Agent 工作流对齐。</p>
+          <div class="kicker" data-i18n="surface.kicker">产品界面</div>
+          <h2 data-i18n="surface.title">每项能力，都有可操作界面</h2>
+          <p data-i18n="surface.desc">从会话中心到模型选择、消息时间线与设置，常用操作无需在终端和配置文件之间切换。</p>
         </div>
         <div class="showcase">
           <div class="show-main reveal">
-            <div class="kicker" style="margin-bottom:0">Layout</div>
-            <h3 data-i18n="surface.layout.h">四区结构，信息密度可控</h3>
-            <p data-i18n="surface.layout.p">深色炭黑 + 系统蓝强调，对齐应用内 theme tokens；日间模式方便官网阅读与演示。</p>
+            <div class="kicker" style="margin-bottom:0" data-i18n="surface.layout.kicker">窗口布局</div>
+            <h3 data-i18n="surface.layout.h">从选择到发送，全程在窗口里</h3>
+            <p data-i18n="surface.layout.p">清楚分区、明确信息层级，并提供深色与浅色主题，长时间使用也容易找到当前状态。</p>
             <ul class="checklist">
               <li>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-                <span data-i18n="surface.c1">侧栏：新对话、历史、连接状态与 cwd</span>
+                <span data-i18n="surface.c1">侧栏：新建对话、浏览历史与查看连接状态</span>
               </li>
               <li>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-                <span data-i18n="surface.c2">顶栏：模型、session、就绪状态</span>
+                <span data-i18n="surface.c2">顶栏：切换模型、项目目录与会话状态</span>
               </li>
               <li>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-                <span data-i18n="surface.c3">输入区：附件、发送、停止</span>
+                <span data-i18n="surface.c3">输入区：添加图片、发送消息与随时停止</span>
               </li>
             </ul>
           </div>
           <div class="show-stack reveal">
             <div class="mini-card">
-              <h4>config.json</h4>
-              <p data-i18n="surface.cfg1">桌面路径、cwd、模型、窗口偏好。</p>
+              <h4 data-i18n="surface.panel1h">会话中心</h4>
+              <p data-i18n="surface.cfg1">按项目整理历史，快速新建、预览和恢复会话。</p>
             </div>
             <div class="mini-card">
-              <h4>config.toml</h4>
-              <p data-i18n="surface.cfg2">CLI 权限 / 压缩等可在设置页映射写入 ~/.grok/config.toml。</p>
+              <h4 data-i18n="surface.panel2h">模型与项目</h4>
+              <p data-i18n="surface.cfg2">用下拉菜单选择模型和工作目录，当前上下文始终可见。</p>
             </div>
             <div class="mini-card">
-              <h4>~/.grok/sessions</h4>
-              <p data-i18n="surface.cfg3">与 TUI 共享会话摘要与恢复数据。</p>
+              <h4 data-i18n="surface.panel3h">设置中心</h4>
+              <p data-i18n="surface.cfg3">集中管理语言、主题、通知、更新、权限与 CLI 状态。</p>
             </div>
           </div>
         </div>
@@ -2039,7 +2043,7 @@
         <div class="section-head reveal">
           <div class="kicker" data-i18n="dl.kicker">Download</div>
           <h2 data-i18n="dl.title">下载客户端</h2>
-          <p data-i18n="dl.desc">Windows 推荐安装包：下载后双击即可安装，无需解压。macOS 提供独立可执行文件。</p>
+          <p data-i18n="dl.desc">安装桌面端后，可直接在设置中检查 CLI 状态并进入安装或登录流程。</p>
         </div>
         <div class="deploy" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
           <article class="deploy-card reveal">
@@ -2064,7 +2068,7 @@
             <h3 data-i18n="dl.allTitle">全部版本</h3>
             <p data-i18n="dl.allDesc">GitHub Releases 历史版本与校验文件</p>
             <a class="btn btn-ghost btn-lg" href="https://github.com/qingchencloud/grok-app/releases" target="_blank" rel="noopener noreferrer" data-i18n="dl.allCta">打开 Releases</a>
-            <p style="margin-top:14px;font-size:12.5px;color:var(--text-3)" data-i18n="dl.note">需要先安装官方 Grok CLI 并执行 grok login。</p>
+            <p style="margin-top:14px;font-size:12.5px;color:var(--text-3)" data-i18n="dl.note">首次使用可在应用设置中检查 CLI 状态并打开安装或登录入口。</p>
           </article>
         </div>
       </div>
@@ -2074,41 +2078,27 @@
       <div class="wrap">
         <div class="section-head reveal">
           <div class="kicker" data-i18n="start.kicker">Get started</div>
-          <h2 data-i18n="start.title">三步上线</h2>
-          <p data-i18n="start.desc">先有 CLI 与登录态，再跑桌面壳。开发用热重载，分发用 packaging。</p>
+          <h2 data-i18n="start.title">三步开始，不用记命令</h2>
+          <p data-i18n="start.desc">安装桌面端，在设置中完成 CLI 准备，然后直接用可视化面板。</p>
         </div>
         <div class="deploy">
           <article class="deploy-card reveal">
             <div class="deploy-num">01</div>
-            <h3 data-i18n="start.s1h">安装并登录 CLI</h3>
-            <p data-i18n="start.s1p">应用内可一键安装 CLI，或使用 xAI 官方脚本：</p>
-            <div class="code-wrap">
-              <pre class="code-block" data-copy>irm https://x.ai/cli/install.ps1 | iex
-grok login</pre>
-              <button class="copy-btn" type="button" data-copy-btn data-i18n="copy">复制</button>
-            </div>
-            <a class="btn btn-ghost" href="https://x.ai/cli" target="_blank" rel="noopener noreferrer" data-i18n="start.cliDoc">CLI 文档</a>
+            <h3 data-i18n="start.s1h">下载并安装桌面端</h3>
+            <p data-i18n="start.s1p">Windows 双击 Setup.exe；macOS 下载对应版本并按系统提示运行。</p>
+            <a class="btn btn-ghost" href="#download" data-i18n="start.s1cta">选择下载版本</a>
           </article>
           <article class="deploy-card reveal">
             <div class="deploy-num">02</div>
-            <h3 data-i18n="start.s2h">开发运行</h3>
-            <p data-i18n="start.s2p">源码目录：</p>
-            <div class="code-wrap">
-              <pre class="code-block" data-copy>.\dev.ps1
-cargo build --release</pre>
-              <button class="copy-btn" type="button" data-copy-btn data-i18n="copy">复制</button>
-            </div>
-            <a class="btn btn-ghost" href="https://github.com/qingchencloud/grok-app#readme" target="_blank" rel="noopener noreferrer">README</a>
+            <h3 data-i18n="start.s2h">在设置中完成准备</h3>
+            <p data-i18n="start.s2p">应用自动检查 Grok CLI；缺少时可一键安装，并从登录入口完成授权。</p>
+            <a class="btn btn-ghost" href="#surface" data-i18n="start.s2cta">查看产品界面</a>
           </article>
           <article class="deploy-card reveal">
             <div class="deploy-num">03</div>
-            <h3 data-i18n="start.s3h">打包分发</h3>
-            <p data-i18n="start.s3p">本地 packaging/build-setup.ps1 生成 Setup.exe，或从 GitHub Releases 下载。</p>
-            <div class="code-wrap">
-              <pre class="code-block" data-copy>.\packaging\build-setup.ps1</pre>
-              <button class="copy-btn" type="button" data-copy-btn data-i18n="copy">复制</button>
-            </div>
-            <a class="btn btn-primary" href="https://github.com/qingchencloud/grok-app/blob/main/docs/RELEASE.md" data-i18n="start.packDoc">发版文档</a>
+            <h3 data-i18n="start.s3h">选择项目，开始对话</h3>
+            <p data-i18n="start.s3p">新建会话时选择工作目录和模型，然后直接发送消息、图片或任务。</p>
+            <a class="btn btn-primary" href="https://github.com/qingchencloud/grok-app#readme" target="_blank" rel="noopener noreferrer" data-i18n="start.s3cta">查看使用说明</a>
           </article>
         </div>
       </div>
@@ -2116,11 +2106,11 @@ cargo build --release</pre>
 
     <div class="final wrap">
       <div class="final-card reveal">
-        <h2 data-i18n-html="final.title">开源桌面壳<br />跑在官方 CLI 之上</h2>
-        <p data-i18n="final.desc">下载 Setup.exe → 安装官方 CLI 并 login → 启动。源码与发版：qingchencloud/grok-app。</p>
+        <h2 data-i18n-html="final.title">想用 Grok CLI<br />不必守着终端</h2>
+        <p data-i18n="final.desc">用可视化会话、模型、图片和权限面板完成日常操作；底层 Grok CLI 在本机后台工作。</p>
         <div class="final-actions">
-          <a class="btn btn-primary btn-lg" href="#download" id="final-download" data-i18n="final.cta1">开始安装</a>
-          <a class="btn btn-ghost btn-lg" href="#features" data-i18n="final.cta2">再看功能</a>
+          <a class="btn btn-primary btn-lg" href="#download" id="final-download" data-i18n="final.cta1">下载桌面版</a>
+          <a class="btn btn-ghost btn-lg" href="#surface" data-i18n="final.cta2">查看界面</a>
           <button class="btn btn-ghost btn-lg" type="button" id="theme-cta" data-i18n="final.theme">切换日间 / 夜间</button>
         </div>
       </div>
@@ -2206,15 +2196,15 @@ cargo build --release</pre>
       var I18N = {
         zh: {
           "doc.title": "Grok Desktop · 晴辰云 QingChen Cloud",
-          "doc.desc": "Grok Desktop 由晴辰云（QingChen Cloud）开源维护：非官方原生桌面客户端，通过 ACP 连接官方 Grok Build CLI（会话、工具、权限）。仓库：github.com/qingchencloud/grok-app",
-          "doc.keywords": "Grok Desktop, Grok App, 晴辰云, QingChen Cloud, grok-app, 非官方, Grok Build CLI, ACP, Rust, egui, Windows",
-          "og.title": "Grok Desktop · 晴辰云开源",
-          "og.desc": "晴辰云开源 · 非官方桌面壳：会话、模型、图片、权限。GitHub Releases 下载 Setup.exe。",
+          "doc.desc": "Grok Desktop 是运行在官方 Grok CLI 之上的原生可视化面板。会话、模型、图片与权限集中在一个窗口，日常使用无需记命令或守着终端。",
+          "doc.keywords": "Grok Desktop, Grok CLI 可视化面板, Grok CLI GUI, Grok 桌面客户端, 晴辰云, QingChen Cloud, grok-app, Windows, macOS",
+          "og.title": "Grok Desktop · Grok CLI 可视化面板",
+          "og.desc": "把 Grok CLI 变成原生桌面界面：可视化管理会话、模型、图片和权限，日常使用无需命令行。",
           "a11y.skip": "跳到正文",
           "nav.main": "主导航",
           "nav.mobile": "移动导航",
           "nav.features": "功能",
-          "nav.protocol": "架构",
+          "nav.protocol": "原理",
           "nav.surface": "界面",
           "nav.start": "开始",
           "nav.download": "下载",
@@ -2223,7 +2213,7 @@ cargo build --release</pre>
           "nav.close": "关闭导航",
           "dl.kicker": "下载",
           "dl.title": "下载客户端",
-          "dl.desc": "Windows 推荐安装包：下载后双击即可安装，无需解压。macOS 提供独立可执行文件。",
+          "dl.desc": "安装桌面端后，可直接在设置中检查 CLI 状态并进入安装或登录流程。",
           "dl.winTitle": "Windows 安装包",
           "dl.winDesc": "Setup.exe · 双击安装 · 无需管理员权限",
           "dl.winCta": "下载 Setup.exe",
@@ -2234,7 +2224,7 @@ cargo build --release</pre>
           "dl.allTitle": "全部版本",
           "dl.allDesc": "GitHub Releases 历史版本与校验文件",
           "dl.allCta": "打开 Releases",
-          "dl.note": "需要先安装官方 Grok CLI 并执行 grok login。",
+          "dl.note": "首次使用可在应用设置中检查 CLI 状态并打开安装或登录入口。",
           "dl.fetching": "正在获取最新版本…",
           "footer.by": "晴辰云 QingChen Cloud · 非官方 · 开源",
           "footer.releases": "Releases",
@@ -2243,102 +2233,138 @@ cargo build --release</pre>
           "shot.zhLabel": "中文界面",
           "shot.caption": "侧栏 · 模型条 · 建议卡片 · 输入区",
           "theme.toggle": "切换日间/夜间模式",
-          "hero.pill": "晴辰云开源 · 非官方 · 基于 Grok Build CLI",
-          "hero.title": "把 Agent<br />放进 <span class=\"shine\">原生窗口</span>",
-          "hero.lead": "由 <strong>晴辰云 QingChen Cloud</strong> 开源的非官方桌面客户端：经 ACP 连接本机官方 <code>grok agent</code>，会话 / 模型 / 图片 / 权限同一主路径。仓库 <code>qingchencloud/grok-app</code>。",
-          "hero.ctaPrimary": "下载安装包",
-          "hero.ctaSecondary": "浏览能力",
-          "hero.chipSessions": "与 TUI 共享会话",
+          "hero.pill": "Grok CLI 可视化面板 · 原生桌面体验",
+          "hero.title": "把 Grok CLI<br />变成 <span class=\"shine\">可视化面板</span>",
+          "hero.lead": "运行在官方 <strong>Grok CLI</strong> 之上的原生桌面面板。会话、模型、图片与权限都集中在一个窗口，日常使用无需记命令或守着终端。",
+          "hero.ctaPrimary": "下载桌面版",
+          "hero.ctaSecondary": "看看界面",
+          "hero.chipNoTerminal": "日常无需命令行",
+          "hero.chipSessions": "会话可视管理",
+          "hero.chipControls": "模型与权限面板",
+          "hero.chipLocal": "本机 CLI 运行",
+          "mock.previewLabel": "Grok Desktop 可视化面板界面示意",
           "mock.newChat": "+ 新对话",
-          "mock.s1": "发布打包",
+          "mock.s1": "项目梳理",
           "mock.s1t": "今天",
-          "mock.s2": "会话恢复",
+          "mock.s2": "需求分析",
           "mock.s2t": "昨天",
-          "mock.s3": "config 映射",
+          "mock.s3": "会话恢复",
           "mock.s3t": "本周",
           "mock.connected": "● 已连接",
           "mock.ready": "就绪",
           "mock.you": "你",
-          "mock.userMsg": "打包 Windows 便携版并校验签名摘要。",
-          "mock.botMsg": "已连接本地 agent，准备执行 packaging 脚本。",
+          "mock.userMsg": "帮我梳理这个项目，并给出下一步建议。",
+          "mock.botMsg": "已连接 Grok CLI，正在读取项目上下文。",
+          "mock.contextReady": "项目上下文 · 已读取",
+          "mock.planReady": "下一步建议 · 已整理",
           "mock.placeholder": "发消息给 Agent…",
-          "stats.version": "版本",
-          "stats.runtime": "运行时",
-          "stats.protocol": "协议",
-          "stats.auth": "认证",
-          "features.kicker": "功能",
-          "features.title": "主路径装进一个窗口",
-          "features.desc": "连接、流式输出、会话恢复、图片与权限——聚焦每天都在用的能力，长尾命令仍回 CLI。",
-          "feat.agent.h": "stdio 子进程，状态一眼可见",
-          "feat.agent.p": "启动并托管 <code>grok agent stdio</code>，自动探测 CLI 路径。连接、就绪、断开都在界面层完成。",
-          "feat.stream.h": "流式时间线",
-          "feat.stream.p": "回复、思考、工具与计划实时渲染；生成中可停止。",
-          "feat.sess.h": "会话扫描 / 恢复",
-          "feat.sess.p": "读取 <code>~/.grok/sessions</code>，预览并 session/load，与 TUI 共享历史。",
-          "feat.model.h": "顶栏控制",
-          "feat.model.p": "模型下拉与工作目录切换，参数直接进入 session。",
-          "feat.media.h": "图片进 Agent",
-          "feat.media.p": "粘贴、选文件、拖放 → ACP image 内容块。",
-          "feat.perm.h": "审批与自动批准",
-          "feat.perm.p": "工具调用可弹窗批准/拒绝，或开启 always-approve 模式。",
-          "feat.cfg.h": "配置映射 + 一键安装 CLI + 发布打包",
-          "feat.cfg.p": "设置页写入 <code>config.toml</code>（不覆盖无关项）；内置 CLI 安装入口；<code>packaging/</code> 产出便携包与 setup zip。",
-          "arch.kicker": "架构",
-          "arch.title": "三层分工，不抢运行时",
-          "arch.desc": "桌面只做壳与交互；认证、模型、工具、MCP、skills 仍由官方 Grok CLI 提供（本项目不托管密钥）。",
-          "arch.shell.p": "原生窗口、会话列表、聊天气泡、设置与权限弹窗。偏好写入 <code>%APPDATA%\\GrokApp</code>。",
-          "arch.bridge.p": "双向流：update、load、cancel、image blocks。桌面不直连 xAI HTTP 聊天接口。",
-          "arch.runtime.p": "本机 <code>grok</code> 负责登录态、模型路由、工具与 skills。与 TUI 同一套能力。",
+          "stats.label": "产品特点",
+          "stats.interaction": "交互",
+          "stats.interactionValue": "全程 GUI",
+          "stats.engine": "核心",
+          "stats.engineValue": "Grok CLI",
+          "stats.session": "会话",
+          "stats.sessionValue": "可视管理",
+          "stats.data": "数据",
+          "stats.dataValue": "本机保存",
+          "features.kicker": "可视化能力",
+          "features.title": "常用操作，都有清晰界面",
+          "features.desc": "把 Grok CLI 的能力整理为可点击、可查看、可恢复的桌面工作流。",
+          "feat.agent.tag": "快速开始",
+          "feat.agent.h": "打开即用的 CLI 面板",
+          "feat.agent.p": "应用自动检查 Grok CLI 状态，提供安装与登录入口；连接、就绪与异常都直接显示在界面中。",
+          "flow.open": "打开面板",
+          "flow.pick": "选择项目",
+          "flow.chat": "开始对话",
+          "flow.result": "查看结果",
+          "feat.stream.tag": "对话过程",
+          "feat.stream.h": "过程清晰可见",
+          "feat.stream.p": "回复、思考、工具与计划实时呈现，生成中也能随时停止。",
+          "feat.sess.tag": "会话中心",
+          "feat.sess.h": "历史会话随时恢复",
+          "feat.sess.p": "按项目浏览本机会话，查看摘要并继续之前的任务，不用翻找命令记录。",
+          "feat.model.tag": "模型 · 项目",
+          "feat.model.h": "模型与项目一键选择",
+          "feat.model.p": "从下拉菜单切换模型与工作目录，新会话的上下文一目了然。",
+          "feat.media.tag": "图片",
+          "feat.media.h": "图片直接拖进对话",
+          "feat.media.p": "支持粘贴、选择文件和拖放图片，像聊天软件一样自然。",
+          "feat.perm.tag": "权限",
+          "feat.perm.h": "权限可视化确认",
+          "feat.perm.p": "工具调用通过弹窗批准或拒绝，也可为信任场景开启自动批准。",
+          "feat.cfg.tag": "设置中心",
+          "feat.cfg.h": "一个页面管好所有选项",
+          "feat.cfg.p": "语言、主题、托盘、通知、更新与 CLI 选项集中管理；需要时可在应用内检查和安装 CLI。",
+          "arch.kicker": "工作原理",
+          "arch.title": "你操作面板，CLI 在后台工作",
+          "arch.desc": "Grok Desktop 不另造模型服务，只把官方 Grok CLI 变成桌面 GUI；日常使用不需要输入命令。",
+          "arch.panel.id": "01 · 面板",
+          "arch.panel.h": "可视化面板",
+          "arch.panel.sub": "点选 · 输入 · 拖放",
+          "arch.shell.p": "会话、模型、项目、图片与权限都在原生窗口中操作，日常无需打开终端。",
+          "arch.bridge.id": "02 · 连接",
+          "arch.bridge.h": "后台连接",
+          "arch.bridge.p": "面板在后台把操作交给 CLI，并把回复、进度和工具结果实时带回界面。",
+          "arch.engine.id": "03 · 核心",
+          "arch.engine.h": "官方 Grok CLI",
+          "arch.engine.sub": "登录 · 模型 · 工具",
+          "arch.runtime.p": "本机 Grok CLI 负责登录态、模型和工具能力；项目不托管你的密钥或另接聊天接口。",
           "surface.kicker": "产品界面",
-          "surface.title": "布局固定，心智不拆",
-          "surface.desc": "侧栏会话 · 顶栏状态 · 时间线 · 输入区——和你已经熟悉的 Agent 工作流对齐。",
-          "surface.layout.h": "四区结构，信息密度可控",
-          "surface.layout.p": "深色炭黑 + 系统蓝强调，对齐应用内 theme tokens；日间模式方便官网阅读与演示。",
-          "surface.c1": "侧栏：新对话、历史、连接状态与 cwd",
-          "surface.c2": "顶栏：模型、session、就绪状态",
-          "surface.c3": "输入区：附件、发送、停止",
-          "surface.cfg1": "桌面路径、cwd、模型、窗口偏好。",
-          "surface.cfg2": "CLI 权限 / 压缩等可在设置页映射写入 ~/.grok/config.toml。",
-          "surface.cfg3": "与 TUI 共享会话摘要与恢复数据。",
+          "surface.title": "每项能力，都有可操作界面",
+          "surface.desc": "从会话中心到模型选择、消息时间线与设置，常用操作无需在终端和配置文件之间切换。",
+          "surface.layout.kicker": "窗口布局",
+          "surface.layout.h": "从选择到发送，全程在窗口里",
+          "surface.layout.p": "清楚分区、明确信息层级，并提供深色与浅色主题，长时间使用也容易找到当前状态。",
+          "surface.c1": "侧栏：新建对话、浏览历史与查看连接状态",
+          "surface.c2": "顶栏：切换模型、项目目录与会话状态",
+          "surface.c3": "输入区：添加图片、发送消息与随时停止",
+          "surface.panel1h": "会话中心",
+          "surface.cfg1": "按项目整理历史，快速新建、预览和恢复会话。",
+          "surface.panel2h": "模型与项目",
+          "surface.cfg2": "用下拉菜单选择模型和工作目录，当前上下文始终可见。",
+          "surface.panel3h": "设置中心",
+          "surface.cfg3": "集中管理语言、主题、通知、更新、权限与 CLI 状态。",
           "start.kicker": "开始使用",
-          "start.title": "三步上线",
-          "start.desc": "先有 CLI 与登录态，再跑桌面壳。开发用热重载，分发用 packaging。",
-          "start.s1h": "安装并登录 CLI",
-          "start.s1p": "应用内可一键安装 CLI，或使用 xAI 官方脚本：",
-          "start.s2h": "开发运行",
-          "start.s2p": "源码目录：",
-          "start.s3h": "从源码打包",
-          "start.s3p": "本地：packaging/build-setup.ps1 生成 Setup.exe。或从 GitHub Releases 直接下载。",
-          "start.cliDoc": "CLI 文档",
-          "start.packDoc": "发版文档",
+          "start.title": "三步开始，不用记命令",
+          "start.desc": "安装桌面端，在设置中完成 CLI 准备，然后直接用可视化面板。",
+          "start.s1h": "下载并安装桌面端",
+          "start.s1p": "Windows 双击 Setup.exe；macOS 下载对应版本并按系统提示运行。",
+          "start.s1cta": "选择下载版本",
+          "start.s2h": "在设置中完成准备",
+          "start.s2p": "应用自动检查 Grok CLI；缺少时可一键安装，并从登录入口完成授权。",
+          "start.s2cta": "查看产品界面",
+          "start.s3h": "选择项目，开始对话",
+          "start.s3p": "新建会话时选择工作目录和模型，然后直接发送消息、图片或任务。",
+          "start.s3cta": "查看使用说明",
           "copy": "复制",
           "copied": "已复制",
-          "final.title": "开源桌面壳<br />跑在官方 CLI 之上",
-          "final.desc": "下载 Setup.exe → 安装官方 CLI 并 login → 启动 Grok Desktop。源码与发版均在 qingchencloud/grok-app。",
-          "final.cta1": "去下载",
-          "final.cta2": "再看功能",
+          "final.title": "想用 Grok CLI<br />不必守着终端",
+          "final.desc": "用可视化会话、模型、图片和权限面板完成日常操作；底层 Grok CLI 在本机后台工作。",
+          "final.cta1": "下载桌面版",
+          "final.cta2": "查看界面",
           "final.theme": "切换日间 / 夜间",
-          "ld.desc": "晴辰云开源的非官方 Grok 桌面客户端，经 ACP 连接本机官方 agent。",
+          "ld.desc": "运行在官方 Grok CLI 之上的原生可视化桌面面板，日常使用无需命令行操作。",
           "ld.featureList": [
-            "经 grok agent stdio 连接",
-            "流式对话与工具/计划",
-            "会话扫描与恢复",
+            "可视化对话工作区",
+            "回复、工具与计划实时呈现",
+            "会话浏览与恢复",
+            "模型与项目选择",
             "图片粘贴与拖放",
-            "权限审批",
-            "config.toml 映射"
+            "权限可视化确认",
+            "应用内 CLI 状态、安装与登录入口"
           ]
         },
         en: {
           "doc.title": "Grok Desktop · QingChen Cloud",
-          "doc.desc": "Grok Desktop by QingChen Cloud: unofficial open-source native client for Grok Build CLI via ACP. Repo: github.com/qingchencloud/grok-app",
-          "doc.keywords": "Grok Desktop, Grok, xAI, Grok Build CLI, ACP, AI agent, desktop client, Rust, egui, Windows",
-          "og.title": "Grok Desktop · QingChen Cloud (open source)",
-          "og.desc": "Unofficial open-source desktop shell by QingChen Cloud. Download Setup.exe from GitHub Releases.",
+          "doc.desc": "Grok Desktop turns the official Grok CLI into a native visual panel. Sessions, models, images, and approvals stay in one window—no commands to remember for everyday use.",
+          "doc.keywords": "Grok Desktop, Grok CLI GUI, Grok CLI visual panel, Grok desktop client, QingChen Cloud, grok-app, Windows, macOS",
+          "og.title": "Grok Desktop · A visual panel for Grok CLI",
+          "og.desc": "Use Grok CLI through a native desktop interface. Manage sessions, models, images, and approvals without command-line operations in everyday use.",
           "a11y.skip": "Skip to content",
           "nav.main": "Primary",
           "nav.mobile": "Mobile",
           "nav.features": "Features",
-          "nav.protocol": "Architecture",
+          "nav.protocol": "How it works",
           "nav.surface": "UI",
           "nav.start": "Get started",
           "nav.download": "Download",
@@ -2346,8 +2372,8 @@ cargo build --release</pre>
           "nav.menu": "Open navigation",
           "nav.close": "Close navigation",
           "dl.kicker": "Download",
-          "dl.title": "Get the client",
-          "dl.desc": "Windows: download Setup.exe and double-click to install — no zip. macOS: single binary.",
+          "dl.title": "Get the desktop app",
+          "dl.desc": "After installing the app, use Settings to check CLI status and enter the install or sign-in flow.",
           "dl.winTitle": "Windows installer",
           "dl.winDesc": "Setup.exe · one-click install · no admin required",
           "dl.winCta": "Download Setup.exe",
@@ -2358,7 +2384,7 @@ cargo build --release</pre>
           "dl.allTitle": "All releases",
           "dl.allDesc": "GitHub Releases, older versions, checksums",
           "dl.allCta": "Open Releases",
-          "dl.note": "You still need the official Grok CLI and grok login.",
+          "dl.note": "On first use, open Settings to check CLI status and use the install or sign-in entry.",
           "dl.fetching": "Fetching latest version…",
           "footer.by": "by QingChen Cloud · unofficial · open source",
           "footer.releases": "Releases",
@@ -2367,89 +2393,125 @@ cargo build --release</pre>
           "shot.zhLabel": "Chinese UI",
           "shot.caption": "Sidebar · model bar · chips · composer",
           "theme.toggle": "Toggle light / dark mode",
-          "hero.pill": "QingChen Cloud · unofficial · powered by Grok Build CLI",
-          "hero.title": "Put the agent<br />in a <span class=\"shine\">native window</span>",
-          "hero.lead": "Open-source desktop client by <strong>QingChen Cloud</strong>: ACP connects to local official <code>grok agent</code>. Repo <code>qingchencloud/grok-app</code> — not affiliated with xAI.",
-          "hero.ctaPrimary": "Download installer",
-          "hero.ctaSecondary": "Explore features",
-          "hero.chipSessions": "Sessions shared with TUI",
+          "hero.pill": "A visual panel for Grok CLI · Native desktop experience",
+          "hero.title": "Grok CLI<br /><span class=\"shine\">beyond the terminal</span>",
+          "hero.lead": "A native desktop panel powered by the official <strong>Grok CLI</strong>. Sessions, models, images, and approvals live in one window—no commands to remember or terminal to watch in everyday use.",
+          "hero.ctaPrimary": "Download desktop app",
+          "hero.ctaSecondary": "See the interface",
+          "hero.chipNoTerminal": "No commands for daily use",
+          "hero.chipSessions": "Visual session manager",
+          "hero.chipControls": "Models & approvals",
+          "hero.chipLocal": "Local CLI runtime",
+          "mock.previewLabel": "Grok Desktop visual panel preview",
           "mock.newChat": "+ New chat",
-          "mock.s1": "Release packaging",
+          "mock.s1": "Project review",
           "mock.s1t": "Today",
-          "mock.s2": "Session restore",
+          "mock.s2": "Requirements",
           "mock.s2t": "Yesterday",
-          "mock.s3": "Config mapping",
+          "mock.s3": "Session restore",
           "mock.s3t": "This week",
           "mock.connected": "● Connected",
           "mock.ready": "READY",
           "mock.you": "You",
-          "mock.userMsg": "Package a Windows portable build and verify the checksum.",
-          "mock.botMsg": "Local agent connected. Running the packaging script.",
+          "mock.userMsg": "Review this project and suggest the next steps.",
+          "mock.botMsg": "Grok CLI connected. Reading the project context.",
+          "mock.contextReady": "Project context · ready",
+          "mock.planReady": "Next-step plan · ready",
           "mock.placeholder": "Message Grok…",
-          "stats.version": "Version",
-          "stats.runtime": "Runtime",
-          "stats.protocol": "Protocol",
-          "stats.auth": "Auth",
-          "features.kicker": "Capabilities",
-          "features.title": "The main path in one window",
-          "features.desc": "Connect, stream, restore sessions, images and permissions — daily agent work, long-tail still in the CLI.",
-          "feat.agent.h": "stdio process, status at a glance",
-          "feat.agent.p": "Launch and host <code>grok agent stdio</code>, auto-detect the CLI path. Connected / ready / disconnected stay visible.",
-          "feat.stream.h": "Streaming timeline",
-          "feat.stream.p": "Replies, thinking, tools and plans render live; cancel anytime while generating.",
-          "feat.sess.h": "Session scan / restore",
-          "feat.sess.p": "Read <code>~/.grok/sessions</code>, preview and session/load — shared with the TUI.",
-          "feat.model.h": "Top-bar controls",
-          "feat.model.p": "Switch model and working directory; values flow into the session.",
-          "feat.media.h": "Images into the agent",
-          "feat.media.p": "Paste, pick files or drop → ACP image content blocks.",
-          "feat.perm.h": "Approvals & always-approve",
-          "feat.perm.p": "Approve or deny tool calls in a dialog, or enable always-approve.",
-          "feat.cfg.h": "Config mapping + CLI install + release packaging",
-          "feat.cfg.p": "Settings write <code>config.toml</code> (no unrelated overwrite); in-app CLI install; <code>packaging/</code> builds portable + setup zips.",
-          "arch.kicker": "Architecture",
-          "arch.title": "Three layers, no stolen runtime",
-          "arch.desc": "Desktop is shell + UX only; auth, models, tools, MCP and skills stay with the official Grok CLI (we never host your keys).",
-          "arch.shell.p": "Native window, session list, chat bubbles, settings and permission modals. Prefs live in <code>%APPDATA%\\GrokApp</code>.",
-          "arch.bridge.p": "Bidirectional stream: update, load, cancel, image blocks. No direct xAI HTTP chat API from the desktop.",
-          "arch.runtime.p": "Local <code>grok</code> owns login, model routing, tools and skills — same runtime as the TUI.",
-          "surface.kicker": "Product surface",
-          "surface.title": "Fixed layout, familiar mental model",
-          "surface.desc": "Sidebar sessions · top status · timeline · composer — aligned with how you already work with the agent.",
-          "surface.layout.h": "Four zones, controlled density",
-          "surface.layout.p": "Charcoal + system blue tokens match the app theme; light mode is for reading the site and demos.",
-          "surface.c1": "Sidebar: new chat, history, connection and cwd",
-          "surface.c2": "Top bar: model, session, ready state",
-          "surface.c3": "Composer: attach, send, stop",
-          "surface.cfg1": "Desktop paths, cwd, model, window prefs.",
-          "surface.cfg2": "CLI permissions/compression mapped from settings.",
-          "surface.cfg3": "Session summaries shared with the TUI.",
+          "stats.label": "Product highlights",
+          "stats.interaction": "Interaction",
+          "stats.interactionValue": "All GUI",
+          "stats.engine": "Engine",
+          "stats.engineValue": "Grok CLI",
+          "stats.session": "Sessions",
+          "stats.sessionValue": "Visual manager",
+          "stats.data": "Data",
+          "stats.dataValue": "Stored locally",
+          "features.kicker": "Visual capabilities",
+          "features.title": "Everyday actions, with a clear interface",
+          "features.desc": "Grok CLI capabilities become a desktop workflow you can click, inspect, and resume.",
+          "feat.agent.tag": "Quick start",
+          "feat.agent.h": "A CLI panel that is ready when you open it",
+          "feat.agent.p": "The app checks Grok CLI status and provides install and sign-in entry points. Connection, readiness, and errors stay visible.",
+          "flow.open": "Open panel",
+          "flow.pick": "Choose project",
+          "flow.chat": "Start chat",
+          "flow.result": "See results",
+          "feat.stream.tag": "Conversation",
+          "feat.stream.h": "See the work as it happens",
+          "feat.stream.p": "Replies, thinking, tools, and plans appear live, with stop control during generation.",
+          "feat.sess.tag": "Session center",
+          "feat.sess.h": "Resume previous sessions anytime",
+          "feat.sess.p": "Browse local sessions by project, preview the summary, and continue without searching command history.",
+          "feat.model.tag": "Model · Project",
+          "feat.model.h": "Choose models and projects in one click",
+          "feat.model.p": "Switch model and working directory from menus, with the current context always visible.",
+          "feat.media.tag": "Images",
+          "feat.media.h": "Drop images straight into the chat",
+          "feat.media.p": "Paste, choose a file, or drag and drop—just like a familiar chat app.",
+          "feat.perm.tag": "Approvals",
+          "feat.perm.h": "Visual permission decisions",
+          "feat.perm.p": "Approve or deny tool calls in a dialog, or enable automatic approval for trusted workflows.",
+          "feat.cfg.tag": "Settings",
+          "feat.cfg.h": "Manage every option in one place",
+          "feat.cfg.p": "Language, theme, tray, notifications, updates, and CLI options live together; check and install the CLI in the app when needed.",
+          "arch.kicker": "How it works",
+          "arch.title": "You use the panel. The CLI works in the background.",
+          "arch.desc": "Grok Desktop does not replace the model service. It turns the official Grok CLI into a desktop GUI, so daily use needs no typed commands.",
+          "arch.panel.id": "01 · PANEL",
+          "arch.panel.h": "Visual panel",
+          "arch.panel.sub": "Click · type · drop",
+          "arch.shell.p": "Sessions, models, projects, images, and approvals all live in the native window—no terminal needed for everyday use.",
+          "arch.bridge.id": "02 · BRIDGE",
+          "arch.bridge.h": "Background bridge",
+          "arch.bridge.p": "The panel sends actions to the CLI in the background and brings replies, progress, and tool results back in real time.",
+          "arch.engine.id": "03 · ENGINE",
+          "arch.engine.h": "Official Grok CLI",
+          "arch.engine.sub": "Sign-in · models · tools",
+          "arch.runtime.p": "The local Grok CLI owns sign-in, models, and tools. This project does not host your keys or connect to a separate chat endpoint.",
+          "surface.kicker": "Product interface",
+          "surface.title": "Every capability has a visible control",
+          "surface.desc": "From the session center to model selection, timeline, and settings, everyday work stays out of terminals and config files.",
+          "surface.layout.kicker": "Window layout",
+          "surface.layout.h": "From selection to send, stay in one window",
+          "surface.layout.p": "Clear zones, strong information hierarchy, and light and dark themes keep the current state easy to find.",
+          "surface.c1": "Sidebar: start chats, browse history, and check connection",
+          "surface.c2": "Top bar: switch model, project folder, and session state",
+          "surface.c3": "Composer: attach images, send messages, and stop anytime",
+          "surface.panel1h": "Session center",
+          "surface.cfg1": "Organize history by project, then create, preview, and resume quickly.",
+          "surface.panel2h": "Models & projects",
+          "surface.cfg2": "Choose the model and working directory from menus with context always visible.",
+          "surface.panel3h": "Settings center",
+          "surface.cfg3": "Manage language, theme, notifications, updates, approvals, and CLI status.",
           "start.kicker": "Get started",
-          "start.title": "Three steps live",
-          "start.desc": "Install and log into the CLI first, then run the desktop shell. Hot reload for dev; packaging for release.",
-          "start.s1h": "Install & log in to the CLI",
-          "start.s1p": "Install the CLI from the app, or use the xAI official script:",
-          "start.s2h": "Develop & run",
-          "start.s2p": "From the repo root:",
-          "start.s3h": "Build from source",
-          "start.s3p": "Local: packaging/build-setup.ps1 → Setup.exe. Or grab builds from GitHub Releases.",
-          "start.cliDoc": "CLI docs",
-          "start.packDoc": "Release docs",
+          "start.title": "Start in three steps—no commands to remember",
+          "start.desc": "Install the desktop app, finish CLI setup in Settings, then use the visual panel.",
+          "start.s1h": "Download and install the desktop app",
+          "start.s1p": "On Windows, double-click Setup.exe. On macOS, download the matching build and follow the system prompts.",
+          "start.s1cta": "Choose a download",
+          "start.s2h": "Finish setup in Settings",
+          "start.s2p": "The app checks Grok CLI automatically. Install it in one click when missing, then use the sign-in entry.",
+          "start.s2cta": "See the interface",
+          "start.s3h": "Choose a project and start chatting",
+          "start.s3p": "Pick a working directory and model for the new session, then send a message, image, or task.",
+          "start.s3cta": "Read the user guide",
           "copy": "Copy",
           "copied": "Copied",
-          "final.title": "Open-source shell<br />on the official CLI",
-          "final.desc": "Download Setup.exe → install official CLI + login → launch Grok Desktop. Source: qingchencloud/grok-app.",
-          "final.cta1": "Go download",
-          "final.cta2": "See features",
+          "final.title": "Use Grok CLI<br />without living in the terminal",
+          "final.desc": "Handle everyday work through visual sessions, model, image, and approval controls while Grok CLI runs locally in the background.",
+          "final.cta1": "Download desktop app",
+          "final.cta2": "See the interface",
           "final.theme": "Light / dark",
-          "ld.desc": "Unofficial open-source Grok desktop client by QingChen Cloud, via ACP to the local official agent.",
+          "ld.desc": "A native visual desktop panel for the official Grok CLI, with no command-line operations required for everyday use.",
           "ld.featureList": [
-            "Agent connection via grok agent stdio",
-            "Streaming chat with tools and plans",
-            "Session scan and restore",
+            "Visual conversation workspace",
+            "Live replies, tools, and plans",
+            "Session browsing and restore",
+            "Model and project selection",
             "Image paste and drag-drop",
-            "Permission approvals",
-            "config.toml mapping"
+            "Visual permission approvals",
+            "In-app CLI status, install, and sign-in entry"
           ]
         }
       };
