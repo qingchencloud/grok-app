@@ -14,7 +14,7 @@
 | | |
 |--|--|
 | **Repo** | [`qingchencloud/grok-app`](https://github.com/qingchencloud/grok-app) (**public**) |
-| **UI language** | English (default) · 中文 — *Settings → Appearance → Language* |
+| **UI language** | Follows the operating system by default · English · 中文 |
 | **中文文档** | [docs/zh/README.md](docs/zh/README.md) |
 | **Download** | **[Releases](https://github.com/qingchencloud/grok-app/releases)** — `Setup.exe` installer |
 | **How to cut a release** | [docs/RELEASE.md](docs/RELEASE.md) |
@@ -51,7 +51,7 @@ More images live under [`docs/screenshots/`](docs/screenshots/).
    → double-click → Install (no zip, no unpack)  
 4. Or **portable:** `GrokDesktop-<ver>-windows-x64.exe` (single file, run directly)  
 5. **macOS:** `GrokDesktop-<ver>-macos-*` (single binary)  
-6. Install & login CLI if needed:
+6. Launch the app. Its setup guide detects the CLI and sign-in state, then offers one-click install / `grok login` when needed.
 
 ```powershell
 # Windows
@@ -74,8 +74,9 @@ grok login
 | Sessions | App-owned index + import from CLI `~/.grok/sessions` |
 | Model / cwd | Top bar + settings |
 | Permissions | Always-approve or interactive |
-| Images | Paste / attach / drag-drop as ACP image blocks |
-| CLI install | One-click install from settings (Windows) |
+| Images | Paste / attach / drag-drop as ACP image blocks; Grok Imagine generation through the xAI Images API |
+| First run | Blocking readiness guide for CLI install and `grok login` |
+| CLI install | One-click install from the first-run guide or settings (Windows) |
 | Config map | Settings write `~/.grok/config.toml` carefully |
 
 ## Requirements
@@ -83,6 +84,18 @@ grok login
 1. [Grok Build CLI](https://x.ai/cli)  
 2. `grok login` once  
 3. Rust toolchain **only if building from source**
+
+## Grok Imagine image generation
+
+Grok Build CLI does not currently expose an image-generation subcommand. Grok Desktop calls the official xAI Images API directly:
+
+- Endpoint: `POST https://api.x.ai/v1/images/generations`
+- Model: `grok-imagine-image-quality`
+- API key: create one at [xAI Console](https://console.x.ai)
+- Billing: xAI API usage is separate from Grok / Grok Build subscription billing
+- Secret handling: the key entered in Grok Desktop is kept in process memory for the current app session only; it is not written to `config.json` or logs
+
+Generated images are downloaded immediately (API URLs are temporary), saved under the app attachment directory, and added to the current composer.
 
 ## Build from source
 

@@ -70,6 +70,16 @@ pub enum AgentEvent {
     SessionCreated {
         session_id: String,
     },
+    /// An existing session finished attaching to the current ACP process.
+    /// Unlike `SessionCreated`, this must never replace the UI's selected id:
+    /// a stale load may finish after the user selected another session.
+    SessionLoaded {
+        session_id: String,
+    },
+    ModeChanged {
+        session_id: Option<String>,
+        mode_id: String,
+    },
     MessageChunk {
         text: String,
     },

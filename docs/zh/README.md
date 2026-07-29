@@ -13,7 +13,7 @@
 | 发版说明 | [docs/RELEASE.md](../RELEASE.md) |
 | 配置项 | [docs/CONFIGURATION.md](../CONFIGURATION.md) |
 | 勿上传内容 | [docs/REPO_HYGIENE.md](../REPO_HYGIENE.md) |
-| 界面语言 | 设置 → 外观 → Language（English / 中文） |
+| 界面语言 | 默认跟随操作系统，也可在设置中选择 English / 中文 |
 | **产品官网** | https://qingchencloud.github.io/grok-app/ （本仓库 `preview/`） |
 
 ## 界面截图
@@ -45,7 +45,7 @@
    → **双击即可安装**（不需要压缩包、不用解压）  
 4. **便携版（可选）：** `GrokDesktop-<版本>-windows-x64.exe` 单文件直接运行  
 5. **macOS：** `GrokDesktop-<版本>-macos-*` 单文件  
-6. 本机仍需 Grok CLI 并登录：
+6. 启动客户端后会自动检测 Grok CLI 与登录状态；缺失时通过首次使用引导安装和登录。
 
 ```powershell
 # Windows
@@ -76,8 +76,22 @@ git push origin v0.1.0
 - Agent 连接、流式对话、思考/工具/计划  
 - 会话索引（与 CLI 隔离，可导入 CLI 会话）  
 - 模型 / 工作目录 / 权限 / 图片附件  
+- Grok Imagine 图片生成（直接调用官方 xAI Images API）
+- 首次启动自动检测 CLI 安装与登录状态
 - 设置映射 `~/.grok/config.toml`  
-- 中英文界面切换  
+- 跟随系统语言 / 中英文手动切换
+
+## 图片生成
+
+Grok Build CLI 当前没有图片生成子命令，因此客户端直接调用官方 xAI Images API：
+
+- 接口：`POST https://api.x.ai/v1/images/generations`
+- 模型：`grok-imagine-image-quality`
+- API 密钥：[xAI Console](https://console.x.ai) 获取
+- xAI API 计费与 Grok / Grok Build 订阅分开
+- 输入客户端的 API 密钥只保留在本次运行内存，不写入配置或日志
+
+生成结果会立即下载到本地附件目录，并自动加入当前输入区。
 
 ## 从源码构建
 

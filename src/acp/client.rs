@@ -1,5 +1,5 @@
 use super::types::*;
-use crate::config::{resolve_grok_binary, AppConfig};
+use crate::config::{resolve_grok_binary, AgentMode, AppConfig};
 use anyhow::{anyhow, Context, Result};
 use parking_lot::Mutex;
 use serde_json::{json, Value};
@@ -27,10 +27,20 @@ struct ClientInner {
     /// Guard against double AgentExited (stdout EOF + wait).
     exited_notified: AtomicBool,
     session_id: Mutex<Option<String>>,
+    /// Serializes session/new, session/load, mode changes, and prompt startup.
+    /// Without this, a fast sidebar switch can load one session while a prompt
+    /// is being sent to another.
+    session_gate: tokio::sync::Mutex<()>,
     child_id: Mutex<Option<u32>>,
+    /// Handshake metadata is published only after the owning app connection
+    /// generation installs this client. Emitting Connected inside start()
+    /// allowed stale concurrent reconnects to mark the wrong process ready.
+    agent_info: Mutex<Option<(String, String)>>,
     /// When true, answer session/request_permission immediately (ACP host-side).
     /// Must not wait for UI — otherwise tools freeze mid-turn.
     always_approve: AtomicBool,
+    preferred_mode: Mutex<String>,
+    cancel_requested: AtomicBool,
     /// True while a session/prompt RPC is outstanding. Concurrent prompts corrupt turns.
     prompt_inflight: AtomicBool,
 }
@@ -54,7 +64,8 @@ impl AcpClient {
         let effort = crate::config::normalize_effort(&config.effort);
         args.push("--reasoning-effort".into());
         args.push(effort.into());
-        if config.always_approve {
+        let initial_mode = config.agent_mode();
+        if initial_mode.always_approves() {
             args.push("--always-approve".into());
         }
         for a in &config.extra_agent_args {
@@ -63,8 +74,10 @@ impl AcpClient {
         args.push("stdio".into());
         let _ = event_tx.send(AgentEvent::Log {
             message: format!(
-                "agent args: model={} effort={} always_approve={}",
-                config.model, effort, config.always_approve
+                "agent args: model={} effort={} mode={}",
+                config.model,
+                effort,
+                initial_mode.id()
             ),
         });
 
@@ -98,8 +111,12 @@ impl AcpClient {
             alive: AtomicBool::new(true),
             exited_notified: AtomicBool::new(false),
             session_id: Mutex::new(None),
+            session_gate: tokio::sync::Mutex::new(()),
             child_id: Mutex::new(pid),
-            always_approve: AtomicBool::new(config.always_approve),
+            agent_info: Mutex::new(None),
+            always_approve: AtomicBool::new(initial_mode.always_approves()),
+            preferred_mode: Mutex::new(initial_mode.id().to_string()),
+            cancel_requested: AtomicBool::new(false),
             prompt_inflight: AtomicBool::new(false),
         });
 
@@ -157,8 +174,11 @@ impl AcpClient {
         let client = Self { inner };
         // Only initialize — do NOT session/new here. Creating a session on every
         // connect spams empty ~/.grok/sessions entries. Session is created lazily
-        // on first prompt or explicit「新对话」.
-        client.initialize().await?;
+        // only when the user sends the first prompt.
+        if let Err(error) = client.initialize().await {
+            client.shutdown().await;
+            return Err(error);
+        }
         Ok(client)
     }
 
@@ -170,6 +190,14 @@ impl AcpClient {
         *self.inner.child_id.lock()
     }
 
+    pub fn agent_info(&self) -> (String, String) {
+        self.inner
+            .agent_info
+            .lock()
+            .clone()
+            .unwrap_or_else(|| ("grok".into(), String::new()))
+    }
+
     pub fn session_id(&self) -> Option<String> {
         self.inner.session_id.lock().clone()
     }
@@ -177,14 +205,6 @@ impl AcpClient {
     /// Drop the in-memory session id so the next prompt/new creates a fresh one.
     pub fn clear_session(&self) {
         *self.inner.session_id.lock() = None;
-    }
-
-    /// Ensure an active ACP session exists (lazy `session/new`).
-    pub async fn ensure_session(&self, cwd: &str) -> Result<String> {
-        if let Some(id) = self.session_id() {
-            return Ok(id);
-        }
-        self.new_session(cwd).await
     }
 
     async fn initialize(&self) -> Result<()> {
@@ -213,10 +233,7 @@ impl AcpClient {
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
-        let _ = self.inner.event_tx.send(AgentEvent::Connected {
-            agent_name,
-            agent_version,
-        });
+        *self.inner.agent_info.lock() = Some((agent_name, agent_version));
 
         // Note: do not send a generic `authenticated` notify — current grok
         // agent logs "Method not found" for it. Auth is already via ~/.grok/auth.json.
@@ -224,6 +241,11 @@ impl AcpClient {
     }
 
     pub async fn new_session(&self, cwd: &str) -> Result<String> {
+        let _session_guard = self.inner.session_gate.lock().await;
+        self.new_session_unlocked(cwd).await
+    }
+
+    async fn new_session_unlocked(&self, cwd: &str) -> Result<String> {
         let params = json!({
             "cwd": cwd,
             "mcpServers": []
@@ -238,11 +260,17 @@ impl AcpClient {
         let _ = self.inner.event_tx.send(AgentEvent::SessionCreated {
             session_id: session_id.clone(),
         });
+        self.apply_preferred_mode_unlocked(&session_id).await?;
         Ok(session_id)
     }
 
     /// Resume a session stored under ~/.grok/sessions (ACP `session/load`).
     pub async fn load_session(&self, session_id: &str, cwd: &str) -> Result<String> {
+        let _session_guard = self.inner.session_gate.lock().await;
+        self.load_session_unlocked(session_id, cwd).await
+    }
+
+    async fn load_session_unlocked(&self, session_id: &str, cwd: &str) -> Result<String> {
         let params = json!({
             "sessionId": session_id,
             "cwd": cwd,
@@ -255,10 +283,60 @@ impl AcpClient {
             .unwrap_or(session_id)
             .to_string();
         *self.inner.session_id.lock() = Some(sid.clone());
-        let _ = self.inner.event_tx.send(AgentEvent::SessionCreated {
+        let _ = self.inner.event_tx.send(AgentEvent::SessionLoaded {
             session_id: sid.clone(),
         });
+        self.apply_preferred_mode_unlocked(&sid).await?;
         Ok(sid)
+    }
+
+    pub fn set_preferred_mode(&self, mode: AgentMode) {
+        *self.inner.preferred_mode.lock() = mode.id().to_string();
+        self.inner
+            .always_approve
+            .store(mode.always_approves(), Ordering::SeqCst);
+    }
+
+    /// Apply the selected Grok session mode without restarting the agent.
+    pub async fn set_mode(&self, mode: AgentMode) -> Result<()> {
+        if self.is_prompt_inflight() {
+            return Err(anyhow!("cannot switch mode while a prompt is running"));
+        }
+        self.set_preferred_mode(mode);
+        let _session_guard = self.inner.session_gate.lock().await;
+        let Some(session_id) = self.session_id() else {
+            let _ = self.inner.event_tx.send(AgentEvent::ModeChanged {
+                session_id: None,
+                mode_id: mode.id().to_string(),
+            });
+            return Ok(());
+        };
+        self.apply_mode_unlocked(&session_id, mode.id()).await
+    }
+
+    async fn apply_preferred_mode_unlocked(&self, session_id: &str) -> Result<()> {
+        let mode_id = self.inner.preferred_mode.lock().clone();
+        self.apply_mode_unlocked(session_id, &mode_id).await
+    }
+
+    async fn apply_mode_unlocked(&self, session_id: &str, mode_id: &str) -> Result<()> {
+        self.request(
+            "session/set_mode",
+            json!({
+                "sessionId": session_id,
+                "modeId": mode_id
+            }),
+        )
+        .await?;
+        let mode = AgentMode::from_id(mode_id);
+        self.inner
+            .always_approve
+            .store(mode.always_approves(), Ordering::SeqCst);
+        let _ = self.inner.event_tx.send(AgentEvent::ModeChanged {
+            session_id: Some(session_id.to_string()),
+            mode_id: mode.id().to_string(),
+        });
+        Ok(())
     }
 
     /// Send a user prompt; streams arrive as AgentEvents; resolves when turn ends.
@@ -267,7 +345,13 @@ impl AcpClient {
     }
 
     /// Send multimodal prompt blocks (text / image per ACP ContentBlock).
-    /// Creates a session on first send if none is active.
+    /// `target_session_id` is a hard routing contract:
+    /// - `Some(id)` loads that exact existing session before sending.
+    /// - `None` always creates a fresh session.
+    ///
+    /// This intentionally never falls back from an existing target to
+    /// `session/new`; doing so caused messages to silently jump into a new chat
+    /// after reconnects or fast sidebar switches.
     /// `history_bootstrap` is optional host-only context (not shown in UI).
     pub fn is_prompt_inflight(&self) -> bool {
         self.inner.prompt_inflight.load(Ordering::SeqCst)
@@ -278,6 +362,7 @@ impl AcpClient {
         mut blocks: Vec<serde_json::Value>,
         cwd: &str,
         history_bootstrap: Option<String>,
+        target_session_id: Option<String>,
     ) -> Result<String> {
         if blocks.is_empty() {
             return Err(anyhow!("empty prompt"));
@@ -288,31 +373,49 @@ impl AcpClient {
             }
         }
 
-        // ACP allows only one prompt turn at a time. If a previous RPC is still
-        // open (UI force-unlocked without cancel, or hang), cancel and wait.
+        // ACP allows only one prompt turn at a time. Never auto-cancel and
+        // double-book here; the UI exposes a real Stop action for the old turn.
         if self
             .inner
             .prompt_inflight
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_err()
         {
-            let _ = self.event_tx().send(AgentEvent::Log {
-                message: "上一轮 session/prompt 仍在进行，先 cancel 再发".into(),
-            });
-            let _ = self.cancel().await;
-            // Give the agent a moment to return cancelled stopReason
-            for _ in 0..40 {
-                if !self.inner.prompt_inflight.load(Ordering::SeqCst) {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-            }
-            self.inner.prompt_inflight.store(true, Ordering::SeqCst);
+            return Err(anyhow!("a session/prompt request is still running"));
         }
+        self.inner.cancel_requested.store(false, Ordering::SeqCst);
 
-        let session_id = self.ensure_session(cwd).await?;
-        let params = crate::acp::parse::build_prompt_params(&session_id, &blocks);
-        let result = self.request("session/prompt", params).await;
+        let result = async {
+            let _session_guard = self.inner.session_gate.lock().await;
+            let session_id = match target_session_id {
+                Some(expected) => {
+                    if self.session_id().as_deref() != Some(expected.as_str()) {
+                        let loaded = self.load_session_unlocked(&expected, cwd).await?;
+                        if loaded != expected {
+                            return Err(anyhow!(
+                                "session binding mismatch: expected {expected}, loaded {loaded}"
+                            ));
+                        }
+                    }
+                    let actual = self.session_id().ok_or_else(|| {
+                        anyhow!("session binding lost before prompt: expected {expected}")
+                    })?;
+                    if actual != expected {
+                        return Err(anyhow!(
+                            "session binding mismatch: expected {expected}, actual {actual}"
+                        ));
+                    }
+                    expected
+                }
+                None => self.new_session_unlocked(cwd).await?,
+            };
+            if self.inner.cancel_requested.load(Ordering::SeqCst) {
+                return Err(anyhow!("prompt cancelled before send"));
+            }
+            let params = crate::acp::parse::build_prompt_params(&session_id, &blocks);
+            self.request("session/prompt", params).await
+        }
+        .await;
         self.inner.prompt_inflight.store(false, Ordering::SeqCst);
         let result = result?;
         let stop = result
@@ -324,23 +427,23 @@ impl AcpClient {
         Ok(stop)
     }
 
-    fn event_tx(&self) -> mpsc::UnboundedSender<AgentEvent> {
-        self.inner.event_tx.clone()
-    }
-
     /// Prompt with plain text only.
     pub async fn prompt_text(&self, text: &str, cwd: &str) -> Result<String> {
-        self.prompt_blocks(vec![json!({ "type": "text", "text": text })], cwd, None)
-            .await
+        let target = self.session_id();
+        self.prompt_blocks(
+            vec![json!({ "type": "text", "text": text })],
+            cwd,
+            None,
+            target,
+        )
+        .await
     }
 
     pub async fn cancel(&self) -> Result<()> {
+        self.inner.cancel_requested.store(true, Ordering::SeqCst);
         let session_id = match self.inner.session_id.lock().clone() {
             Some(s) => s,
-            None => {
-                self.inner.prompt_inflight.store(false, Ordering::SeqCst);
-                return Ok(());
-            }
+            None => return Ok(()),
         };
         let res = self
             .notify("session/cancel", json!({ "sessionId": session_id }))
@@ -709,8 +812,24 @@ impl ClientInner {
             || method.ends_with("/session/update")
             || method.contains("session/update");
         if is_session_update {
+            let update_session_id = params
+                .get("sessionId")
+                .or_else(|| params.get("session_id"))
+                .and_then(|value| value.as_str());
+            let current_session_id = self.session_id.lock().clone();
+            if !should_forward_session_update(&params, current_session_id.as_deref()) {
+                tracing::debug!(
+                    "drop stale/replayed session update; event={update_session_id:?} current={current_session_id:?}"
+                );
+                return Ok(());
+            }
             let update = params.get("update").cloned().unwrap_or(Value::Null);
             let mut events = crate::acp::parse::session_update_to_events(&update);
+            for event in &mut events {
+                if let AgentEvent::ModeChanged { session_id, .. } = event {
+                    *session_id = update_session_id.map(str::to_owned);
+                }
+            }
             // x.ai background task lifecycle → force tool terminal state
             if events.is_empty() {
                 let kind = update
@@ -761,6 +880,76 @@ impl ClientInner {
             }
         }
         Ok(())
+    }
+}
+
+impl Drop for AcpClient {
+    fn drop(&mut self) {
+        // Final safety net for superseded reconnects and abnormal window exits.
+        // Normal shutdown flips `alive` first, so this is a no-op there.
+        if self.inner.alive.swap(false, Ordering::SeqCst) {
+            if let Some(pid) = *self.inner.child_id.lock() {
+                kill_pid(pid);
+            }
+        }
+    }
+}
+
+/// A loaded session can replay its complete historical update stream before
+/// `session/load` resolves. Those records are display history, not live turn
+/// state, and must never clear or mutate the currently executing conversation.
+fn should_forward_session_update(params: &Value, current_session_id: Option<&str>) -> bool {
+    let update_session_id = params
+        .get("sessionId")
+        .or_else(|| params.get("session_id"))
+        .and_then(Value::as_str);
+    if let (Some(update_sid), Some(current_sid)) = (update_session_id, current_session_id) {
+        if update_sid != current_sid {
+            return false;
+        }
+    }
+
+    !params
+        .pointer("/_meta/isReplay")
+        .or_else(|| params.pointer("/update/_meta/isReplay"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_forward_session_update;
+    use serde_json::json;
+
+    #[test]
+    fn drops_updates_from_a_different_bound_session() {
+        let params = json!({
+            "sessionId": "SESSION_B",
+            "update": { "sessionUpdate": "agent_message_chunk" }
+        });
+        assert!(!should_forward_session_update(&params, Some("SESSION_A")));
+    }
+
+    #[test]
+    fn drops_history_replay_even_for_the_bound_session() {
+        let params = json!({
+            "sessionId": "SESSION_A",
+            "_meta": { "isReplay": true },
+            "update": {
+                "sessionUpdate": "turn_completed",
+                "stopReason": "end_turn"
+            }
+        });
+        assert!(!should_forward_session_update(&params, Some("SESSION_A")));
+    }
+
+    #[test]
+    fn forwards_live_update_for_the_bound_session() {
+        let params = json!({
+            "sessionId": "SESSION_A",
+            "update": { "sessionUpdate": "agent_message_chunk" }
+        });
+        assert!(should_forward_session_update(&params, Some("SESSION_A")));
     }
 }
 

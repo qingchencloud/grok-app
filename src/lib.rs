@@ -9,6 +9,7 @@ pub mod config;
 pub mod desktop_notify;
 pub mod desktop_tray;
 pub mod i18n;
+pub mod image_generation;
 pub mod local;
 pub mod models_cache;
 pub mod session_fsm;

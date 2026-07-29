@@ -11,9 +11,11 @@
 | `cwd` | process cwd | Default working directory for sessions |
 | `model` | `grok-4.5` | Default model id (override in UI) |
 | `effort` | `medium` | `low` / `medium` / `high` → CLI reasoning effort |
-| `always_approve` | `true` | Pass `--always-approve` to agent |
+| `permission_mode` | `bypassPermissions` | Session mode: `default` (Normal), `plan`, or `bypassPermissions` (Always-Approve) |
+| `always_approve` | `true` | Legacy compatibility mirror; migrated into `permission_mode` |
 | `dark_mode` | `true` | Theme |
-| `ui_locale` | `en` | `en` or `zh` |
+| `ui_locale` | `en` | Manual language value (`en` or `zh`) |
+| `ui_locale_mode` | `system` | `system` follows the OS locale; `manual` uses `ui_locale` |
 | `font_scale` | `1.0` | UI font scale 0.85–1.35 |
 | `auto_connect` | `true` | Connect agent on launch |
 | `smooth_stream` | `true` | Smooth token drip |
@@ -27,6 +29,11 @@
 
 These are **defaults**, not secrets. Change them in **Settings** or by editing the JSON after quitting the app.
 
+The composer mode button and `Shift+Tab` cycle through **Normal → Plan →
+Always-Approve**. Existing sessions are switched live with ACP
+`session/set_mode`; a new or reloaded session receives the selected mode before
+its next prompt.
+
 ## CLI config (shared with Grok TUI)
 
 **Path:** `~/.grok/config.toml` (or `$GROK_HOME/config.toml`)
@@ -38,7 +45,8 @@ Written carefully from **Settings → Advanced**. Do not put API keys in the des
 | Item | Location |
 |------|----------|
 | CLI login | `~/.grok/auth.json` or `XAI_API_KEY` env |
-| Desktop secrets | **None** — auth is CLI-owned |
+| Grok Imagine API key | Entered per app session or inherited from `XAI_API_KEY`; never written to app config |
+| Desktop persistent secrets | **None** — CLI auth is CLI-owned |
 
 ## Hardcoded product constants (source)
 

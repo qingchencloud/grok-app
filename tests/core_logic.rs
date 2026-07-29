@@ -38,6 +38,23 @@ fn inbound_request_not_misparsed_as_response() {
         other => panic!("expected Notification, got {other:?}"),
     }
 }
+
+#[test]
+fn parses_grok_current_mode_update() {
+    let update = serde_json::json!({
+        "sessionUpdate": "current_mode_update",
+        "currentModeId": "plan"
+    });
+    let events = session_update_to_events(&update);
+    assert!(matches!(
+        events.as_slice(),
+        [AgentEvent::ModeChanged {
+            session_id: None,
+            mode_id
+        }] if mode_id == "plan"
+    ));
+}
+
 use grok_app::local::cli_config::{merge_config_toml, CliTomlConfig};
 use grok_app::local::sessions::{
     group_sessions_by_project, normalize_project_key, parse_summary_json, parse_updates_jsonl,

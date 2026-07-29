@@ -1,6 +1,8 @@
 //! Settings — redesigned workbench panel (left nav + clean form sections).
 
-use crate::config::{effort_label, normalize_effort, resolve_grok_binary, AppConfig, MODELS};
+use crate::config::{
+    effort_label, normalize_effort, resolve_grok_binary, AgentMode, AppConfig, MODELS,
+};
 use crate::local::install::{probe_status, probe_status_fast, CliInstallStatus, INSTALL_URL};
 use crate::local::skills::{self, SkillEntry};
 use crate::local::{CliTomlConfig, LocalSession};
@@ -80,9 +82,9 @@ pub struct SettingsState {
     pub cwd: String,
     pub model: String,
     pub effort: String,
-    pub always_approve: bool,
+    pub permission_mode: String,
     pub dark_mode: bool,
-    /// `en` | `zh`
+    /// `system` | `en` | `zh`
     pub ui_locale: String,
     pub font_scale: f32,
     pub auto_connect: bool,
@@ -125,9 +127,9 @@ impl SettingsState {
             cwd: app.cwd.clone(),
             model: app.model.clone(),
             effort: normalize_effort(&app.effort).to_string(),
-            always_approve: app.always_approve,
+            permission_mode: app.agent_mode().id().to_string(),
             dark_mode: app.dark_mode,
-            ui_locale: app.locale().as_str().to_string(),
+            ui_locale: app.locale_preference().to_string(),
             font_scale: app.font_scale,
             auto_connect: app.auto_connect,
             smooth_stream: app.smooth_stream,
@@ -159,9 +161,9 @@ impl SettingsState {
         self.cwd = app.cwd.clone();
         self.model = app.model.clone();
         self.effort = normalize_effort(&app.effort).to_string();
-        self.always_approve = app.always_approve;
+        self.permission_mode = app.agent_mode().id().to_string();
         self.dark_mode = app.dark_mode;
-        self.ui_locale = app.locale().as_str().to_string();
+        self.ui_locale = app.locale_preference().to_string();
         self.font_scale = app.font_scale;
         self.auto_connect = app.auto_connect;
         self.smooth_stream = app.smooth_stream;
@@ -628,9 +630,18 @@ fn mono_path(ui: &mut Ui, path: &str) {
 fn tab_appearance(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActions) {
     let s = crate::i18n::t();
     section(ui, s.language, s.language_hint, |ui| {
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
-            for (id, label) in [("en", "English"), ("zh", "中文")] {
+            let system_label = format!(
+                "{} · {}",
+                s.system_language,
+                crate::i18n::system_locale().label()
+            );
+            for (id, label) in [
+                ("system", system_label.as_str()),
+                ("en", "English"),
+                ("zh", "中文"),
+            ] {
                 let on = state.ui_locale == id;
                 let fill = if on {
                     theme::accent_soft()
@@ -652,12 +663,17 @@ fn tab_appearance(ui: &mut Ui, state: &mut SettingsState, actions: &mut Settings
                         .fill(fill)
                         .stroke(stroke)
                         .corner_radius(8)
-                        .min_size(Vec2::new(88.0, 32.0)),
+                        .min_size(Vec2::new(if id == "system" { 132.0 } else { 88.0 }, 32.0)),
                     )
                     .clicked()
                 {
                     state.ui_locale = id.into();
-                    crate::i18n::set_locale(crate::i18n::Locale::from_str(id));
+                    let locale = if id == "system" {
+                        crate::i18n::system_locale()
+                    } else {
+                        crate::i18n::Locale::from_str(id)
+                    };
+                    crate::i18n::set_locale(locale);
                     actions.apply_theme = true; // repaint chrome
                 }
             }
@@ -924,12 +940,38 @@ fn tab_agent(ui: &mut Ui, state: &mut SettingsState, actions: &mut SettingsActio
     );
 
     section(ui, crate::i18n::t().permissions, "", |ui| {
-        row_toggle(
-            ui,
-            crate::i18n::t().always_approve,
-            crate::i18n::t().always_approve_hint,
-            &mut state.always_approve,
-        );
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.label(
+                    RichText::new(crate::i18n::mode_switch_hint())
+                        .size(12.5)
+                        .color(theme::TEXT()),
+                );
+                ui.label(
+                    RichText::new(crate::i18n::agent_mode_description(AgentMode::from_id(
+                        &state.permission_mode,
+                    )))
+                    .size(11.0)
+                    .color(theme::TEXT_3()),
+                );
+            });
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                egui::ComboBox::from_id_salt("settings_agent_mode")
+                    .selected_text(crate::i18n::agent_mode_label(AgentMode::from_id(
+                        &state.permission_mode,
+                    )))
+                    .width(150.0)
+                    .show_ui(ui, |ui| {
+                        for mode in AgentMode::ALL {
+                            ui.selectable_value(
+                                &mut state.permission_mode,
+                                mode.id().to_string(),
+                                crate::i18n::agent_mode_label(mode),
+                            );
+                        }
+                    });
+            });
+        });
         ui.add_space(10.0);
         row_toggle(
             ui,

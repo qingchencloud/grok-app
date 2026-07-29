@@ -23,9 +23,15 @@ impl Locale {
     }
 
     pub fn from_str(s: &str) -> Self {
-        match s.trim().to_ascii_lowercase().as_str() {
-            "zh" | "zh-cn" | "zh_cn" | "chinese" | "cn" => Self::Zh,
-            _ => Self::En,
+        let normalized = s.trim().to_ascii_lowercase().replace('_', "-");
+        if normalized == "cn"
+            || normalized == "chinese"
+            || normalized == "zh"
+            || normalized.starts_with("zh-")
+        {
+            Self::Zh
+        } else {
+            Self::En
         }
     }
 
@@ -35,6 +41,16 @@ impl Locale {
             Self::Zh => "中文",
         }
     }
+}
+
+/// Preferred OS/application locale as a BCP 47 language tag.
+pub fn system_locale_tag() -> String {
+    sys_locale::get_locale().unwrap_or_else(|| "en-US".to_string())
+}
+
+/// Locale supported by this app, resolved from the current operating system.
+pub fn system_locale() -> Locale {
+    Locale::from_str(&system_locale_tag())
 }
 
 pub fn set_locale(locale: Locale) {
@@ -69,6 +85,54 @@ pub fn new_session_status(cwd_short: &str) -> String {
     match current_locale() {
         Locale::Zh => format!("新建会话 · {cwd_short}"),
         Locale::En => format!("New session · {cwd_short}"),
+    }
+}
+
+pub fn agent_mode_label(mode: crate::config::AgentMode) -> &'static str {
+    use crate::config::AgentMode;
+    match (current_locale(), mode) {
+        (Locale::Zh, AgentMode::Normal) => "普通",
+        (Locale::Zh, AgentMode::Plan) => "规划",
+        (Locale::Zh, AgentMode::AlwaysApprove) => "始终批准",
+        (Locale::En, AgentMode::Normal) => "Normal",
+        (Locale::En, AgentMode::Plan) => "Plan",
+        (Locale::En, AgentMode::AlwaysApprove) => "Always-Approve",
+    }
+}
+
+pub fn agent_mode_description(mode: crate::config::AgentMode) -> &'static str {
+    use crate::config::AgentMode;
+    match (current_locale(), mode) {
+        (Locale::Zh, AgentMode::Normal) => "执行工具前按需询问",
+        (Locale::Zh, AgentMode::Plan) => "先制定方案，不修改文件",
+        (Locale::Zh, AgentMode::AlwaysApprove) => "自动批准所有工具调用",
+        (Locale::En, AgentMode::Normal) => "Ask before tools when needed",
+        (Locale::En, AgentMode::Plan) => "Plan first; do not edit files",
+        (Locale::En, AgentMode::AlwaysApprove) => "Approve every tool call",
+    }
+}
+
+pub fn mode_switched(mode: crate::config::AgentMode) -> String {
+    match current_locale() {
+        Locale::Zh => format!("已切换到模式：{}", agent_mode_label(mode)),
+        Locale::En => format!("Switched to mode: {}", agent_mode_label(mode)),
+    }
+}
+
+pub fn mode_switch_hint() -> &'static str {
+    match current_locale() {
+        Locale::Zh => "切换运行模式 · Shift+Tab",
+        Locale::En => "Switch mode · Shift+Tab",
+    }
+}
+
+pub fn session_binding_error() -> String {
+    match current_locale() {
+        Locale::Zh => "当前会话尚未绑定，消息未发送；请重新选择该会话".to_string(),
+        Locale::En => {
+            "The current session is not bound. Nothing was sent; select the session again."
+                .to_string()
+        }
     }
 }
 
@@ -288,6 +352,22 @@ pub struct Strings {
     pub day_tip: &'static str,
     pub night_tip: &'static str,
     pub login: &'static str,
+    pub onboarding_title: &'static str,
+    pub onboarding_subtitle: &'static str,
+    pub onboarding_cli_step: &'static str,
+    pub onboarding_cli_ready: &'static str,
+    pub onboarding_cli_missing: &'static str,
+    pub onboarding_auth_step: &'static str,
+    pub onboarding_auth_ready: &'static str,
+    pub onboarding_auth_missing: &'static str,
+    pub onboarding_install: &'static str,
+    pub onboarding_installing: &'static str,
+    pub onboarding_login: &'static str,
+    pub onboarding_check_again: &'static str,
+    pub onboarding_login_opened: &'static str,
+    pub onboarding_ready: &'static str,
+    pub onboarding_advanced: &'static str,
+    pub onboarding_required: &'static str,
     pub process: &'static str,
     pub ready: &'static str,
     pub connecting: &'static str,
@@ -301,6 +381,7 @@ pub struct Strings {
     pub cancelled: &'static str,
     pub error_status: &'static str,
     pub copy: &'static str,
+    pub copied: &'static str,
     pub cancel: &'static str,
     pub confirm: &'static str,
     pub close: &'static str,
@@ -314,6 +395,23 @@ pub struct Strings {
     pub attach: &'static str,
     pub attach_tip: &'static str,
     pub paste_image: &'static str,
+    pub generate_image: &'static str,
+    pub image_generation_title: &'static str,
+    pub image_generation_subtitle: &'static str,
+    pub image_api_key: &'static str,
+    pub image_api_key_hint: &'static str,
+    pub image_api_key_session_only: &'static str,
+    pub image_api_key_missing: &'static str,
+    pub create_api_key: &'static str,
+    pub image_prompt: &'static str,
+    pub image_prompt_hint: &'static str,
+    pub aspect_ratio: &'static str,
+    pub resolution: &'static str,
+    pub image_generate: &'static str,
+    pub image_generating: &'static str,
+    pub image_generated: &'static str,
+    pub image_generation_failed: &'static str,
+    pub api_billing_separate: &'static str,
     pub send: &'static str,
     pub input_placeholder: &'static str,
     pub input_connect_first: &'static str,
@@ -469,6 +567,7 @@ pub struct Strings {
     pub notify_turn_cancelled: &'static str,
     pub language: &'static str,
     pub language_hint: &'static str,
+    pub system_language: &'static str,
     pub theme: &'static str,
     pub theme_hint: &'static str,
     pub profile: &'static str,
@@ -707,6 +806,25 @@ s! {
     day_tip: "Light appearance", "浅色外观",
     night_tip: "Dark appearance", "深色外观",
     login: "Login", "登录",
+    onboarding_title: "Set up Grok Desktop", "开始使用 Grok Desktop",
+    onboarding_subtitle: "This app is a visual client for Grok Build CLI. Install and sign in once to continue.",
+        "这是 Grok Build CLI 的可视化客户端。完成安装并登录后即可使用。",
+    onboarding_cli_step: "1 · Grok CLI", "1 · Grok CLI",
+    onboarding_cli_ready: "Installed and ready", "已安装，可用",
+    onboarding_cli_missing: "Not found on this computer", "这台电脑尚未安装",
+    onboarding_auth_step: "2 · Account", "2 · 账号",
+    onboarding_auth_ready: "Signed in to Grok CLI", "Grok CLI 已登录",
+    onboarding_auth_missing: "Sign in is required before chatting", "开始聊天前需要登录",
+    onboarding_install: "Install Grok CLI", "安装 Grok CLI",
+    onboarding_installing: "Installing Grok CLI…", "正在安装 Grok CLI…",
+    onboarding_login: "Sign in to Grok CLI", "登录 Grok CLI",
+    onboarding_check_again: "Check again", "重新检测",
+    onboarding_login_opened: "Complete sign-in in the opened window, then return here.",
+        "请在已打开的窗口完成登录，然后返回这里。",
+    onboarding_ready: "Everything is ready. Connecting…", "准备完成，正在连接…",
+    onboarding_advanced: "Advanced settings", "高级设置",
+    onboarding_required: "Installation and sign-in are required to use this client.",
+        "使用此客户端前必须完成安装与登录。",
     process: "Process", "进程",
     ready: "Ready", "就绪",
     connecting: "Connecting", "连接中",
@@ -720,6 +838,7 @@ s! {
     cancelled: "Cancelled", "已取消",
     error_status: "Error", "出错",
     copy: "Copy", "复制",
+    copied: "Copied", "已复制",
     cancel: "Cancel", "取消",
     confirm: "Confirm", "确认",
     close: "Close", "关闭",
@@ -733,6 +852,26 @@ s! {
     attach: "Attach", "附件",
     attach_tip: "Attach · drop · Ctrl+V", "附件 · 拖放 · Ctrl+V",
     paste_image: "Paste image", "粘贴图",
+    generate_image: "Generate image", "生成图片",
+    image_generation_title: "Grok Imagine", "Grok Imagine 图片生成",
+    image_generation_subtitle: "Generate with the official xAI Images API and add the result to this prompt.",
+        "调用官方 xAI Images API，生成后直接加入当前输入区。",
+    image_api_key: "xAI API key", "xAI API 密钥",
+    image_api_key_hint: "xai-… (or set XAI_API_KEY before launch)", "xai-…（也可在启动前设置 XAI_API_KEY）",
+    image_api_key_session_only: "Kept in memory for this app session only; never written to config or logs.",
+        "仅在本次应用运行期间保存在内存中，不写入配置和日志。",
+    image_api_key_missing: "Enter an xAI API key to generate images.", "请输入 xAI API 密钥后生成图片。",
+    create_api_key: "Create API key", "获取 API 密钥",
+    image_prompt: "Prompt", "图片描述",
+    image_prompt_hint: "Describe the image you want to create…", "描述你希望生成的图片…",
+    aspect_ratio: "Aspect ratio", "画面比例",
+    resolution: "Resolution", "分辨率",
+    image_generate: "Generate", "生成",
+    image_generating: "Generating image…", "正在生成图片…",
+    image_generated: "Image generated and added to the composer", "图片已生成并加入输入区",
+    image_generation_failed: "Image generation failed", "图片生成失败",
+    api_billing_separate: "Grok CLI sign-in and xAI API billing are separate. Image generation uses API credits.",
+        "Grok CLI 登录与 xAI API 计费相互独立；图片生成会消耗 API 额度。",
     send: "Send", "发送",
     input_placeholder: "Message…", "输入消息…",
     input_connect_first: "Connect the agent to start chatting", "连接 Agent 后开始对话",
@@ -897,8 +1036,9 @@ s! {
         "本轮任务已完成，打开应用查看结果。",
     notify_turn_cancelled: "Turn cancelled", "任务已取消",
     language: "Language", "语言",
-    language_hint: "UI language (English / 中文). Takes effect immediately.",
-        "界面语言（English / 中文），立即生效",
+    language_hint: "Follows the operating system by default; manual override takes effect immediately.",
+        "默认跟随操作系统，也可手动覆盖；立即生效",
+    system_language: "System", "跟随系统",
     theme: "Theme", "主题",
     theme_hint: "Synced with the sidebar toggle", "与侧栏底部开关同步",
     profile: "Profile", "个人资料",
@@ -1219,5 +1359,18 @@ pub fn tools_summary_line(n: usize, titles: &str) -> String {
     match current_locale() {
         Locale::Zh => format!("⚙ {n} 个工具调用: {titles}"),
         Locale::En => format!("⚙ {n} tool calls: {titles}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Locale;
+
+    #[test]
+    fn chinese_bcp47_variants_resolve_to_chinese() {
+        assert_eq!(Locale::from_str("zh-CN"), Locale::Zh);
+        assert_eq!(Locale::from_str("zh-Hans-CN"), Locale::Zh);
+        assert_eq!(Locale::from_str("zh_TW"), Locale::Zh);
+        assert_eq!(Locale::from_str("en-US"), Locale::En);
     }
 }

@@ -386,24 +386,24 @@ fn timeline_item_salt(item: &TimelineItem, idx: usize) -> egui::Id {
 
 fn render_empty(ui: &mut Ui, w: f32, on_suggestion: &mut impl FnMut(String)) {
     let s = crate::i18n::t();
-    ui.add_space(theme::SPACE_XL + 8.0);
+    ui.add_space(theme::SPACE_XL * 2.0);
     ui.vertical_centered(|ui| {
-        icons::grok_logo(ui, 48.0);
-        ui.add_space(theme::SPACE_LG);
+        icons::grok_logo(ui, 38.0);
+        ui.add_space(14.0);
         ui.label(
             RichText::new(s.empty_title)
-                .size(22.0)
+                .size(20.0)
                 .strong()
                 .color(theme::TEXT()),
         );
-        ui.add_space(6.0);
+        ui.add_space(4.0);
         ui.label(
             RichText::new(s.empty_subtitle)
-                .size(13.5)
+                .size(13.0)
                 .color(theme::TEXT_2()),
         );
     });
-    ui.add_space(theme::SPACE_XL);
+    ui.add_space(20.0);
 
     // (title, hint, prompt)
     let chips: [(&str, &str, &str); 4] = [
@@ -416,12 +416,12 @@ fn render_empty(ui: &mut Ui, w: f32, on_suggestion: &mut impl FnMut(String)) {
         ),
         (s.chip_docs, s.chip_docs_hint, s.chip_docs_prompt),
     ];
-    let row_w = ui.available_width().min(w).min(480.0).max(280.0);
+    let row_w = ui.available_width().min(w).min(520.0).max(280.0);
     let outer = ui.available_width();
     let side_pad = ((outer - row_w) * 0.5).max(0.0);
     let gap = 10.0;
     let half = ((row_w - gap) * 0.5).max(130.0);
-    let chip_h = 52.0;
+    let chip_h = 48.0;
 
     ui.horizontal(|ui| {
         ui.add_space(side_pad);
@@ -445,17 +445,16 @@ fn render_empty(ui: &mut Ui, w: f32, on_suggestion: &mut impl FnMut(String)) {
                         let resp = Frame::NONE
                             .fill(fill)
                             .stroke(Stroke::new(1.0, border))
-                            .shadow(theme::card_shadow())
-                            .corner_radius(12)
-                            .inner_margin(Margin::symmetric(14, 10))
+                            .corner_radius(10)
+                            .inner_margin(Margin::symmetric(13, 8))
                             .show(ui, |ui| {
                                 ui.set_min_size(Vec2::new(half, chip_h));
                                 ui.set_max_width(half);
                                 ui.vertical(|ui| {
                                     ui.label(
-                                        RichText::new(*title).size(13.5).strong().color(p.text),
+                                        RichText::new(*title).size(13.0).strong().color(p.text),
                                     );
-                                    ui.label(RichText::new(*hint).size(11.5).color(p.text_3));
+                                    ui.label(RichText::new(*hint).size(11.0).color(p.text_3));
                                 });
                             })
                             .response
@@ -464,7 +463,7 @@ fn render_empty(ui: &mut Ui, w: f32, on_suggestion: &mut impl FnMut(String)) {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             ui.painter().rect_stroke(
                                 resp.rect,
-                                12.0,
+                                10.0,
                                 Stroke::new(1.0, p.accent.gamma_multiply(0.55)),
                                 egui::StrokeKind::Outside,
                             );
@@ -546,7 +545,7 @@ fn render_item(
         } => {
             // Right-hug layout: measure bubble width, spacer on the left.
             // (RTL + Align::Min used to dump short text like "行" to the far left.)
-            let bubble_max = (col_w * 0.72).clamp(160.0, 560.0);
+            let bubble_max = (col_w * 0.68).clamp(150.0, 520.0);
             let on_bubble = theme::on_user_bubble();
             let letter = AppConfig::avatar_letter(identity.user_name);
             let avatar_path = if identity.user_avatar_path.trim().is_empty() {
@@ -554,9 +553,9 @@ fn render_item(
             } else {
                 Some(identity.user_avatar_path)
             };
-            let avatar_sz = 32.0;
-            let gap = 10.0;
-            let pad_x = 28.0; // horizontal padding inside bubble
+            let avatar_sz = 28.0;
+            let gap = 9.0;
+            let pad_x = 24.0; // horizontal padding inside bubble
             let font = egui::FontId::proportional(14.0);
             let text_w = if text.is_empty() {
                 0.0
@@ -590,22 +589,12 @@ fn render_item(
                         Frame::NONE
                             .fill(p.user_bubble)
                             .stroke(Stroke::new(1.0, p.user_bubble_border))
-                            .shadow(if theme::is_dark() {
-                                egui::Shadow {
-                                    offset: [0, 2],
-                                    blur: 8,
-                                    spread: 0,
-                                    color: Color32::from_black_alpha(50),
-                                }
-                            } else {
-                                theme::card_shadow()
-                            })
-                            .inner_margin(Margin::symmetric(14, 10))
+                            .inner_margin(Margin::symmetric(12, 9))
                             .corner_radius(egui::CornerRadius {
-                                nw: 16,
+                                nw: 14,
                                 ne: 4,
-                                sw: 16,
-                                se: 16,
+                                sw: 14,
+                                se: 14,
                             })
                             .show(ui, |ui| {
                                 ui.set_max_width(bubble_w);
@@ -665,82 +654,58 @@ fn render_item(
                 _ => text.as_str(),
             };
 
-            // Avatar + named bubble panel (must contrast stage in dark mode)
+            // Codex-style document stream: identity rail + flat prose. Assistant
+            // messages must not become giant nested cards for long answers.
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
-                icons::grok_avatar(ui, 32.0);
+                icons::grok_avatar(ui, theme::CHAT_AVATAR);
                 ui.vertical(|ui| {
-                    let body_max = (prose_w - 42.0).max(140.0);
+                    let body_max = (prose_w - theme::CHAT_AVATAR - 10.0).max(140.0);
+                    ui.set_width(body_max);
                     ui.set_max_width(body_max);
 
-                    Frame::NONE
-                        .fill(theme::assistant_panel())
-                        .stroke(Stroke::new(1.0, theme::assistant_panel_border()))
-                        .shadow(if theme::is_dark() {
-                            egui::Shadow {
-                                offset: [0, 2],
-                                blur: 10,
-                                spread: 0,
-                                color: Color32::from_black_alpha(55),
-                            }
-                        } else {
-                            theme::card_shadow()
-                        })
-                        .inner_margin(Margin::symmetric(14, 11))
-                        .corner_radius(egui::CornerRadius {
-                            nw: 4,
-                            ne: 16,
-                            sw: 16,
-                            se: 16,
-                        })
-                        .show(ui, |ui| {
-                            ui.set_max_width(body_max - 4.0);
-                            // Header inside bubble
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 6.0;
-                                ui.label(RichText::new("Grok").size(12.0).strong().color(p.text_2));
-                                if *streaming {
-                                    ui.add(egui::Spinner::new().size(10.0).color(p.accent));
-                                    ui.label(
-                                        RichText::new(crate::i18n::t().generating)
-                                            .size(11.0)
-                                            .color(p.accent),
-                                    );
-                                }
-                            });
-                            ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 7.0;
+                        ui.label(RichText::new("Grok").size(12.5).strong().color(p.text_2));
+                        if *streaming {
+                            ui.add(egui::Spinner::new().size(10.0).color(p.accent));
+                            ui.label(
+                                RichText::new(crate::i18n::t().generating)
+                                    .size(11.0)
+                                    .color(p.accent),
+                            );
+                        }
+                    });
+                    ui.add_space(7.0);
 
-                            if shown.is_empty() && *streaming {
-                                ui.label(
-                                    RichText::new(crate::i18n::t().organizing_reply)
-                                        .size(13.5)
-                                        .color(p.text_3),
-                                );
-                            } else if !shown.is_empty() {
-                                let md_src = if *streaming { shown } else { text.as_str() };
-                                let inner_w = ui.available_width().max(120.0);
-                                ui.style_mut().visuals.override_text_color = Some(p.text);
-                                render_assistant_markdown(ui, md_cache, md_src, inner_w);
-                                if *streaming {
-                                    ui.label(
-                                        RichText::new("▍").size(13.0).color(p.accent).strong(),
-                                    );
-                                }
-                            }
+                    if shown.is_empty() && *streaming {
+                        ui.label(
+                            RichText::new(crate::i18n::t().organizing_reply)
+                                .size(13.5)
+                                .color(p.text_3),
+                        );
+                    } else if !shown.is_empty() {
+                        let md_src = if *streaming { shown } else { text.as_str() };
+                        let inner_w = ui.available_width().max(120.0);
+                        ui.style_mut().visuals.override_text_color = Some(p.text);
+                        render_assistant_markdown(ui, md_cache, md_src, inner_w);
+                        if *streaming {
+                            ui.label(RichText::new("▍").size(13.0).color(p.accent).strong());
+                        }
+                    }
 
-                            if !text.is_empty() && !*streaming {
-                                ui.add_space(6.0);
-                                ui.horizontal(|ui| {
-                                    if message_action_btn(ui, crate::i18n::t().copy).clicked() {
-                                        let ok = attachments::set_clipboard_text(text);
-                                        ui.ctx().copy_text(text.clone());
-                                        if !ok {
-                                            ui.ctx().copy_text(text.clone());
-                                        }
-                                    }
-                                });
+                    if !text.is_empty() && !*streaming {
+                        ui.add_space(5.0);
+                        ui.horizontal(|ui| {
+                            if message_action_btn(ui, crate::i18n::t().copy).clicked() {
+                                let ok = attachments::set_clipboard_text(text);
+                                ui.ctx().copy_text(text.clone());
+                                if !ok {
+                                    ui.ctx().copy_text(text.clone());
+                                }
                             }
                         });
+                    }
                 });
             });
         }
@@ -920,9 +885,13 @@ fn render_item(
     }
 }
 
-/// Render assistant markdown with proper GFM tables (commonmark tables look broken).
+/// Render assistant markdown with custom GFM tables + fenced code blocks.
+///
+/// `egui_commonmark`'s default code_block uses emoji copy glyphs (broken on many
+/// Windows fonts) and a flat TextEdit chrome. We peel fences out and draw IDE-style
+/// panels; tables still need a custom grid (commonmark tables look broken).
 fn render_assistant_markdown(ui: &mut Ui, md_cache: &mut CommonMarkCache, src: &str, max_w: f32) {
-    let chunks = split_md_tables(src);
+    let chunks = split_md_chunks(src);
     if chunks.is_empty() {
         CommonMarkViewer::new()
             .max_image_width(Some(max_w as usize))
@@ -943,6 +912,11 @@ fn render_assistant_markdown(ui: &mut Ui, md_cache: &mut CommonMarkCache, src: &
                 render_md_table(ui, headers, rows, max_w);
                 ui.add_space(8.0);
             }
+            MdChunk::Code { lang, code } => {
+                ui.add_space(6.0);
+                render_md_code_block(ui, lang.as_deref(), code, max_w);
+                ui.add_space(8.0);
+            }
         });
     }
 }
@@ -953,14 +927,40 @@ enum MdChunk {
         headers: Vec<String>,
         rows: Vec<Vec<String>>,
     },
+    Code {
+        lang: Option<String>,
+        code: String,
+    },
 }
 
-fn split_md_tables(src: &str) -> Vec<MdChunk> {
+fn split_md_chunks(src: &str) -> Vec<MdChunk> {
     let lines: Vec<&str> = src.lines().collect();
     let mut out = Vec::new();
     let mut prose: Vec<&str> = Vec::new();
     let mut i = 0;
     while i < lines.len() {
+        // Fenced code takes priority over tables (pipes inside fences are code).
+        if let Some(lang) = fence_open_lang(lines[i]) {
+            if !prose.is_empty() {
+                out.push(MdChunk::Prose(prose.join("\n")));
+                prose.clear();
+            }
+            i += 1;
+            let mut body: Vec<&str> = Vec::new();
+            while i < lines.len() {
+                if is_fence_close(lines[i]) {
+                    i += 1;
+                    break;
+                }
+                body.push(lines[i]);
+                i += 1;
+            }
+            out.push(MdChunk::Code {
+                lang,
+                code: body.join("\n"),
+            });
+            continue;
+        }
         if is_table_row(lines[i]) && i + 1 < lines.len() && is_table_sep(lines[i + 1]) {
             if !prose.is_empty() {
                 out.push(MdChunk::Prose(prose.join("\n")));
@@ -985,6 +985,113 @@ fn split_md_tables(src: &str) -> Vec<MdChunk> {
     out
 }
 
+/// Opening fence: line begins with ``` (optional language tag).
+fn fence_open_lang(line: &str) -> Option<Option<String>> {
+    let t = line.trim_start();
+    if !t.starts_with("```") {
+        return None;
+    }
+    // Bare ``` is a close fence when scanning body; treat as open only if it has
+    // a language/info string, OR we use it as open when not inside a fence (caller
+    // always treats first ``` as open). Closing is handled by is_fence_close.
+    let rest = t[3..].trim();
+    if rest.is_empty() {
+        Some(None)
+    } else {
+        // Drop trailing backticks from info string if any
+        let lang = rest.split_whitespace().next().unwrap_or(rest);
+        Some(Some(lang.to_string()))
+    }
+}
+
+fn is_fence_close(line: &str) -> bool {
+    let t = line.trim();
+    t.starts_with("```") && t[3..].chars().all(|c| c == '`' || c.is_whitespace())
+}
+
+/// IDE-style fenced code panel: language chip + text Copy (no Windows-broken emoji).
+fn render_md_code_block(ui: &mut Ui, lang: Option<&str>, code: &str, max_w: f32) {
+    let p = theme::t();
+    let code = code.strip_suffix('\n').unwrap_or(code);
+    let header_fill = if theme::is_dark() {
+        p.surface_2
+    } else {
+        Color32::from_rgb(0xE4, 0xE7, 0xED)
+    };
+
+    Frame::NONE
+        .fill(p.code_bg)
+        .stroke(Stroke::new(1.0, p.border))
+        .corner_radius(8)
+        .inner_margin(Margin::ZERO)
+        .show(ui, |ui| {
+            ui.set_max_width(max_w);
+            ui.set_min_width((max_w - 1.0).max(80.0));
+
+            // Header: language + Copy
+            Frame::NONE
+                .fill(header_fill)
+                .inner_margin(Margin::symmetric(10, 5))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        let label = lang.filter(|s| !s.is_empty()).unwrap_or("code");
+                        ui.label(RichText::new(label).size(11.0).monospace().color(p.text_3));
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            let id = ui.make_persistent_id((
+                                "code_copy",
+                                lang.unwrap_or(""),
+                                code.len(),
+                                simple_str_hash(code),
+                            ));
+                            let just_copied = ui
+                                .ctx()
+                                .memory(|m| m.data.get_temp::<bool>(id).unwrap_or(false));
+                            let s = crate::i18n::t();
+                            let btn_label = if just_copied { s.copied } else { s.copy };
+                            let resp = message_action_btn(ui, btn_label);
+                            if resp.clicked() {
+                                let _ = attachments::set_clipboard_text(code);
+                                ui.ctx().copy_text(code.to_owned());
+                                ui.ctx().memory_mut(|m| m.data.insert_temp(id, true));
+                            } else if just_copied && !resp.hovered() {
+                                ui.ctx().memory_mut(|m| m.data.insert_temp(id, false));
+                            }
+                        });
+                    });
+                });
+
+            // Divider under header
+            let r = ui.min_rect();
+            ui.painter()
+                .hline(r.x_range(), r.bottom(), Stroke::new(1.0, p.border));
+
+            // Selectable monospace body (frame=false — outer Frame provides chrome)
+            Frame::NONE
+                .inner_margin(Margin::symmetric(12, 10))
+                .show(ui, |ui| {
+                    let mut text = code;
+                    let _ = egui::TextEdit::multiline(&mut text)
+                        .desired_width(ui.available_width().max(40.0))
+                        .desired_rows(1)
+                        .frame(false)
+                        .code_editor()
+                        .text_color(p.text)
+                        .show(ui);
+                });
+        });
+}
+
+fn simple_str_hash(s: &str) -> u64 {
+    // Cheap stable id salt for copy-button memory (not cryptographic).
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in s.as_bytes().iter().take(256) {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x1000_0000_01b3);
+    }
+    h ^ (s.len() as u64)
+}
+
 fn is_table_row(line: &str) -> bool {
     let t = line.trim();
     t.starts_with('|') && t.matches('|').count() >= 2
@@ -1003,6 +1110,24 @@ fn is_table_sep(line: &str) -> bool {
 fn parse_table_row(line: &str) -> Vec<String> {
     let t = line.trim().trim_matches('|');
     t.split('|').map(|c| c.trim().to_string()).collect()
+}
+
+fn table_cell_text(cell: &str) -> (&str, bool, bool) {
+    let trimmed = cell.trim();
+    if let Some(inner) = trimmed
+        .strip_prefix("**")
+        .and_then(|s| s.strip_suffix("**"))
+    {
+        return (inner.trim(), true, false);
+    }
+    if let Some(inner) = trimmed.strip_prefix('`').and_then(|s| s.strip_suffix('`')) {
+        return (inner.trim(), false, true);
+    }
+    let path_like = trimmed.contains('/')
+        || trimmed.contains('\\')
+        || trimmed.ends_with(".rs")
+        || trimmed.ends_with('/');
+    (trimmed, false, path_like)
 }
 
 fn render_md_table(ui: &mut Ui, headers: &[String], rows: &[Vec<String>], max_w: f32) {
@@ -1066,16 +1191,18 @@ fn render_md_table(ui: &mut Ui, headers: &[String], rows: &[Vec<String>], max_w:
                                     .show(ui, |ui| {
                                         ui.set_min_width(col_w - 1.0);
                                         ui.set_max_width(col_w - 1.0);
-                                        // path-like cells mono
-                                        let mono = cell.contains('/')
-                                            || cell.contains('\\')
-                                            || cell.ends_with(".rs")
-                                            || cell.ends_with('/');
-                                        let rt = if mono {
-                                            RichText::new(cell).size(12.5).monospace().color(p.text)
+                                        let (shown, strong, mono) = table_cell_text(cell);
+                                        let mut rt = if mono {
+                                            RichText::new(shown)
+                                                .size(12.5)
+                                                .monospace()
+                                                .color(p.text)
                                         } else {
-                                            RichText::new(cell).size(13.0).color(p.text_2)
+                                            RichText::new(shown).size(13.0).color(p.text_2)
                                         };
+                                        if strong {
+                                            rt = rt.strong().color(p.text);
+                                        }
                                         ui.add(egui::Label::new(rt).wrap());
                                     });
                             }

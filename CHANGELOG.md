@@ -2,6 +2,31 @@
 
 All notable changes to **Grok Desktop** (`qingchencloud/grok-app`) are documented here.
 
+## [0.1.4] — 2026-07-29
+
+### Added
+- Codex-style new-chat workspace: choose a project, compose the first request, then create the real CLI session
+- Grok CLI mode selector in the composer: **Normal → Plan → Always-Approve**, including `Shift+Tab`
+- Grok Imagine image generation through the official xAI Images API with session-only API-key handling
+- System-language detection with an explicit manual language override
+- First-run checks for Grok CLI installation and CLI login state
+
+### Changed
+- Reworked the chat page, composer, dialogs, message/tool rendering, light/dark themes, and responsive layout
+- Moved model, reasoning effort, workspace, attachments, and execution mode into a clearer composer workflow
+- Updated product wording to describe Grok Desktop as a visual client for Grok CLI, without requiring terminal interaction after setup
+
+### Fixed
+- Existing-session prompts are hard-bound to the selected session and no longer silently create or run in another conversation
+- Historical replay and stale-session events can no longer prematurely mark a live turn complete
+- A real Stop control remains visible while the ACP prompt is active and sends `session/cancel`
+- Reconnects and app exit now clean up superseded `grok agent` child processes
+- Tray **Quit** exits the application instead of leaving an uncloseable tray process
+- Image-generation and other dialogs can be closed via title close, Cancel, backdrop click, or `Esc`
+
+### Notes
+- Install with **`GrokDesktop-Setup-0.1.4-windows-x64.exe`** for Desktop + Start Menu shortcuts
+
 ## [0.1.3] — 2026-07-25
 
 ### Added

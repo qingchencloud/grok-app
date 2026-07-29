@@ -5,6 +5,50 @@ use std::path::{Path, PathBuf};
 const APP_DIR: &str = "GrokApp";
 const CONFIG_FILE: &str = "config.json";
 
+/// The three modes in Grok CLI's Shift+Tab cycle.
+///
+/// ACP uses these exact ids with `session/set_mode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AgentMode {
+    Normal,
+    Plan,
+    AlwaysApprove,
+}
+
+impl AgentMode {
+    pub const ALL: [Self; 3] = [Self::Normal, Self::Plan, Self::AlwaysApprove];
+
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Normal => "default",
+            Self::Plan => "plan",
+            Self::AlwaysApprove => "bypassPermissions",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Self {
+        match id.trim().to_ascii_lowercase().as_str() {
+            "plan" => Self::Plan,
+            "bypasspermissions" | "always-approve" | "always_approve" | "yolo" => {
+                Self::AlwaysApprove
+            }
+            _ => Self::Normal,
+        }
+    }
+
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Normal => Self::Plan,
+            Self::Plan => Self::AlwaysApprove,
+            Self::AlwaysApprove => Self::Normal,
+        }
+    }
+
+    pub const fn always_approves(self) -> bool {
+        matches!(self, Self::AlwaysApprove)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
@@ -17,12 +61,23 @@ pub struct AppConfig {
     /// Reasoning effort: `low` | `medium` | `high` → CLI `--reasoning-effort`.
     pub effort: String,
     /// Auto-approve all tool executions (`grok agent --always-approve`).
+    ///
+    /// Kept for backward-compatible config migration. `permission_mode` is the
+    /// authoritative value after load.
     pub always_approve: bool,
+    /// ACP session mode: `default` | `plan` | `bypassPermissions`.
+    pub permission_mode: String,
     /// Extra args prepended before `stdio` (advanced).
     pub extra_agent_args: Vec<String>,
     pub dark_mode: bool,
     /// UI language: `en` | `zh` (English primary, Chinese secondary).
     pub ui_locale: String,
+    /// UI locale source: `system` (default) or `manual`.
+    ///
+    /// This field was added after the initial release. Because `AppConfig`
+    /// uses serde defaults, existing installs automatically migrate to system
+    /// language until the user explicitly picks English or 中文.
+    pub ui_locale_mode: String,
     /// UI font scale (0.85–1.35). Applied on next theme/fonts refresh.
     pub font_scale: f32,
     pub window_width: f32,
@@ -65,9 +120,11 @@ impl Default for AppConfig {
             model: "grok-4.5".into(),
             effort: "medium".into(),
             always_approve: true,
+            permission_mode: "bypassPermissions".into(),
             extra_agent_args: Vec::new(),
             dark_mode: true,
             ui_locale: "en".into(),
+            ui_locale_mode: "system".into(),
             font_scale: 1.0,
             // Tall enough that the composer is fully visible under topbar + empty state.
             window_width: 1440.0,
@@ -90,9 +147,58 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    fn from_json_with_migration(raw: &str) -> Self {
+        let has_permission_mode = serde_json::from_str::<serde_json::Value>(raw)
+            .ok()
+            .and_then(|value| value.get("permission_mode").cloned())
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false);
+        let mut config: Self = serde_json::from_str(raw).unwrap_or_default();
+        let mode = if has_permission_mode {
+            AgentMode::from_id(&config.permission_mode)
+        } else if config.always_approve {
+            AgentMode::AlwaysApprove
+        } else {
+            AgentMode::Normal
+        };
+        config.set_agent_mode(mode);
+        config
+    }
+
+    pub fn agent_mode(&self) -> AgentMode {
+        if self.permission_mode.trim().is_empty() {
+            if self.always_approve {
+                AgentMode::AlwaysApprove
+            } else {
+                AgentMode::Normal
+            }
+        } else {
+            AgentMode::from_id(&self.permission_mode)
+        }
+    }
+
+    pub fn set_agent_mode(&mut self, mode: AgentMode) {
+        self.permission_mode = mode.id().to_string();
+        self.always_approve = mode.always_approves();
+    }
+
     /// Resolved UI locale (`en` / `zh`).
     pub fn locale(&self) -> crate::i18n::Locale {
-        crate::i18n::Locale::from_str(&self.ui_locale)
+        if self.ui_locale_mode.eq_ignore_ascii_case("manual") {
+            crate::i18n::Locale::from_str(&self.ui_locale)
+        } else {
+            crate::i18n::system_locale()
+        }
+    }
+
+    /// Settings picker value: `system` | `en` | `zh`.
+    pub fn locale_preference(&self) -> &'static str {
+        if self.ui_locale_mode.eq_ignore_ascii_case("manual") {
+            self.locale().as_str()
+        } else {
+            "system"
+        }
     }
 
     /// Display name for chat; empty → localized default ("Me" / "我").
@@ -174,7 +280,7 @@ impl AppConfig {
             return Self::default();
         }
         match std::fs::read_to_string(&path) {
-            Ok(s) => serde_json::from_str(&s).unwrap_or_default(),
+            Ok(s) => Self::from_json_with_migration(&s),
             Err(_) => Self::default(),
         }
     }
@@ -225,16 +331,96 @@ pub fn grok_home() -> Option<PathBuf> {
 }
 
 pub fn is_cli_authenticated() -> bool {
-    grok_home()
-        .map(|h| h.join("auth.json").is_file())
+    if std::env::var("XAI_API_KEY")
+        .map(|k| !k.trim().is_empty())
         .unwrap_or(false)
-        || std::env::var("XAI_API_KEY")
-            .map(|k| !k.is_empty())
-            .unwrap_or(false)
+    {
+        return true;
+    }
+
+    let Some(path) = grok_home().map(|h| h.join("auth.json")) else {
+        return false;
+    };
+    let Ok(raw) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return false;
+    };
+    auth_json_has_credentials(&value)
+}
+
+fn auth_json_has_credentials(value: &serde_json::Value) -> bool {
+    fn object_has_token(map: &serde_json::Map<String, serde_json::Value>) -> bool {
+        ["key", "access_token", "refresh_token", "api_key"]
+            .iter()
+            .any(|name| {
+                map.get(*name)
+                    .and_then(|v| v.as_str())
+                    .map(|s| !s.trim().is_empty())
+                    .unwrap_or(false)
+            })
+    }
+
+    match value {
+        serde_json::Value::Object(map) => {
+            object_has_token(map) || map.values().any(auth_json_has_credentials)
+        }
+        serde_json::Value::Array(values) => values.iter().any(auth_json_has_credentials),
+        _ => false,
+    }
 }
 
 pub fn path_exists(p: &str) -> bool {
     Path::new(p).exists()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{auth_json_has_credentials, AgentMode, AppConfig};
+
+    #[test]
+    fn auth_json_requires_a_non_empty_credential() {
+        assert!(!auth_json_has_credentials(&serde_json::json!({})));
+        assert!(!auth_json_has_credentials(&serde_json::json!({
+            "https://auth.x.ai::team": {
+                "key": " ",
+                "refresh_token": ""
+            }
+        })));
+        assert!(auth_json_has_credentials(&serde_json::json!({
+            "https://auth.x.ai::team": {
+                "key": "TOKEN"
+            }
+        })));
+    }
+
+    #[test]
+    fn old_config_defaults_to_system_locale_mode() {
+        let config: AppConfig = serde_json::from_value(serde_json::json!({
+            "ui_locale": "en"
+        }))
+        .unwrap();
+        assert_eq!(config.ui_locale_mode, "system");
+        assert_eq!(config.locale(), crate::i18n::system_locale());
+    }
+
+    #[test]
+    fn legacy_always_approve_migrates_to_acp_mode() {
+        let enabled = AppConfig::from_json_with_migration(r#"{"always_approve":true}"#);
+        assert_eq!(enabled.agent_mode(), AgentMode::AlwaysApprove);
+
+        let disabled = AppConfig::from_json_with_migration(r#"{"always_approve":false}"#);
+        assert_eq!(disabled.agent_mode(), AgentMode::Normal);
+    }
+
+    #[test]
+    fn grok_shift_tab_mode_cycle_is_stable() {
+        assert_eq!(AgentMode::Normal.next(), AgentMode::Plan);
+        assert_eq!(AgentMode::Plan.next(), AgentMode::AlwaysApprove);
+        assert_eq!(AgentMode::AlwaysApprove.next(), AgentMode::Normal);
+        assert_eq!(AgentMode::AlwaysApprove.id(), "bypassPermissions");
+    }
 }
 
 /// Well-known model choices for the desktop picker.

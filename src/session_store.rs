@@ -145,6 +145,12 @@ impl SessionStore {
     }
 
     pub fn set_session_id(&mut self, id: Option<String>) {
+        // A brand-new draft starts its first turn before ACP returns
+        // `session/new`. Bind that late-created id to the already-running turn
+        // so sidebar activity and completion bookkeeping stay attached.
+        if self.busy && self.busy_session_id.is_none() {
+            self.busy_session_id = id.clone();
+        }
         self.session_id = id;
     }
 
@@ -514,5 +520,18 @@ mod tests {
             s.sidebar_activity("s2", true, false),
             SessionActivity::Current
         );
+    }
+
+    #[test]
+    fn first_turn_adopts_lazily_created_session_id() {
+        let mut s = SessionStore::new();
+        s.handshake_ok();
+        s.begin_turn();
+        assert_eq!(s.busy_session_id(), None);
+
+        s.set_session_id(Some("created-on-first-prompt".into()));
+
+        assert_eq!(s.session_id(), Some("created-on-first-prompt"));
+        assert_eq!(s.busy_session_id(), Some("created-on-first-prompt"));
     }
 }

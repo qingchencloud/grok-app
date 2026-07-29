@@ -2,11 +2,15 @@ use crate::acp::parse::build_history_bootstrap;
 use crate::acp::{AcpClient, AgentEvent, ChatImage, PermissionOption, TimelineItem};
 use crate::attachments::{self, PendingImage};
 use crate::config::{
-    effort_label, is_cli_authenticated, normalize_effort, resolve_grok_binary, AppConfig, MODELS,
+    effort_label, is_cli_authenticated, normalize_effort, resolve_grok_binary, AgentMode,
+    AppConfig, MODELS,
 };
 use crate::desktop_notify;
 use crate::desktop_tray::{AppTray, TrayAction};
-use crate::local::install::{install_cli, InstallProgress};
+use crate::image_generation::{
+    spawn_generate, ImageGenerationEvent, ImageGenerationRequest, API_KEY_URL,
+};
+use crate::local::install::{install_cli, probe_status_fast, InstallProgress};
 use crate::local::{
     archive_session, delete_from_app, group_sessions_by_project, import_cli_session,
     list_active_sessions, list_archived_sessions, list_cli_import_candidates,
@@ -28,12 +32,14 @@ use crate::ui::widgets::{
 use crate::update::{self, UpdateCheckResult, UpdateUiState};
 use eframe::egui;
 use egui::{
-    Align, Color32, Frame, Key, Layout, Margin, RichText, ScrollArea, Stroke, TextEdit, Ui,
+    Align, Color32, Frame, Key, Layout, Margin, Modifiers, RichText, ScrollArea, Stroke, TextEdit,
+    Ui,
 };
 use egui_commonmark::CommonMarkCache;
 use parking_lot::Mutex;
 use serde_json::Value;
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -108,10 +114,26 @@ pub struct GrokApp {
 
     rt: tokio::runtime::Runtime,
     client: Arc<Mutex<Option<Arc<AcpClient>>>>,
+    /// Invalidates stale asynchronous connect attempts. A superseded client is
+    /// shut down before it can overwrite the active slot or emit Connected.
+    connect_generation: Arc<AtomicU64>,
     event_rx: mpsc::UnboundedReceiver<AgentEvent>,
     event_tx: mpsc::UnboundedSender<AgentEvent>,
 
     install_rx: Option<std_mpsc::Receiver<InstallProgress>>,
+    /// First-run/update gate: Grok CLI must exist and be authenticated.
+    onboarding_open: bool,
+    login_started: bool,
+    last_readiness_probe: Option<std::time::Instant>,
+
+    /// Grok Imagine (xAI Images API) session-only state.
+    image_generation_open: bool,
+    image_api_key: String,
+    image_prompt: String,
+    image_aspect_ratio: String,
+    image_resolution: String,
+    image_generating: bool,
+    image_generation_rx: Option<std_mpsc::Receiver<ImageGenerationEvent>>,
 
     md_cache: CommonMarkCache,
 
@@ -185,14 +207,17 @@ impl GrokApp {
         let local_sessions = std::panic::catch_unwind(list_active_sessions).unwrap_or_default();
         let settings = SettingsState::new(&config);
 
-        // Sync always_approve from CLI config.toml if present
+        // Sync the CLI's startup mode when it explicitly selects one of the
+        // three supported desktop modes.
         let mut config = config;
         if settings.cli_toml.loaded {
             if settings.cli_toml.yolo
                 || settings.cli_toml.permission_mode == "always-approve"
                 || settings.cli_toml.permission_mode == "bypassPermissions"
             {
-                config.always_approve = true;
+                config.set_agent_mode(AgentMode::AlwaysApprove);
+            } else if settings.cli_toml.permission_mode == "plan" {
+                config.set_agent_mode(AgentMode::Plan);
             }
             if !settings.cli_toml.default_model.is_empty() && config.model == "grok-4.5" {
                 // keep app model; user can still override
@@ -240,9 +265,20 @@ impl GrokApp {
             input_focus_request: true,
             rt,
             client: Arc::new(Mutex::new(None)),
+            connect_generation: Arc::new(AtomicU64::new(0)),
             event_rx,
             event_tx,
             install_rx: None,
+            onboarding_open: false,
+            login_started: false,
+            last_readiness_probe: None,
+            image_generation_open: false,
+            image_api_key: std::env::var("XAI_API_KEY").unwrap_or_default(),
+            image_prompt: String::new(),
+            image_aspect_ratio: "auto".into(),
+            image_resolution: "1k".into(),
+            image_generating: false,
+            image_generation_rx: None,
             md_cache: CommonMarkCache::default(),
             smooth_assistant: SmoothStream::default(),
             smooth_thought: SmoothStream::default(),
@@ -277,19 +313,24 @@ impl GrokApp {
         // Defer agent connect — spawning grok during first frames can race with
         // window creation and look like a crash on some machines.
         let cli_ok = resolve_grok_binary(&app.config.grok_path).is_ok();
-        app.pending_connect = cli_ok && app.config.auto_connect;
+        let auth_ok = is_cli_authenticated();
+        app.pending_connect = cli_ok && auth_ok && app.config.auto_connect;
+        app.onboarding_open = !cli_ok || !auth_ok;
         app.pending_update_check = app.config.check_updates_on_startup;
         if !cli_ok {
-            app.settings.open = true;
             app.settings.tab = SettingsTab::Cli;
-            app.error_banner = Some(crate::i18n::t().cli_missing_banner.into());
         }
 
-        if !is_cli_authenticated() {
+        if !auth_ok {
             app.logs.push(crate::i18n::t().auth_missing_hint.into());
         }
 
         app.frame_count = 0;
+        // The startup surface is an explicit unsaved draft. Its first send must
+        // always create a new session, never reuse a stale ACP binding.
+        app.new_chat_draft = Some(NewChatDraft {
+            cwd: app.config.cwd.clone(),
+        });
         app
     }
 
@@ -369,9 +410,16 @@ impl GrokApp {
 
     /// Register / refresh a session id into the App index (isolation boundary).
     fn register_app_session(&mut self, session_id: &str) {
+        let title_hint = self.timeline.iter().rev().find_map(|item| match item {
+            TimelineItem::UserMessage { text, .. } => {
+                let title = text.chars().take(36).collect::<String>().replace('\n', " ");
+                (!title.trim().is_empty()).then_some(title)
+            }
+            _ => None,
+        });
         let _ = touch_session(
             session_id,
-            None,
+            title_hint.as_deref(),
             Some(self.config.cwd.as_str()),
             Some(self.config.model.as_str()),
             false,
@@ -424,7 +472,7 @@ impl GrokApp {
 
     /// If store is idle, never keep streaming flags / live tool chip.
     fn reconcile_idle_display(&mut self) {
-        if self.store.busy() {
+        if self.prompt_active() {
             return;
         }
         if self.store.live_tool().is_some() {
@@ -453,6 +501,20 @@ impl GrokApp {
         }
     }
 
+    /// Source of truth for whether Stop must remain available.
+    ///
+    /// The ACP request can still be active for a short time after a stale UI
+    /// event cleared `SessionStore`; never hide Stop or allow another send then.
+    fn prompt_active(&self) -> bool {
+        self.store.busy()
+            || self
+                .client
+                .lock()
+                .as_ref()
+                .map(|client| client.is_prompt_inflight())
+                .unwrap_or(false)
+    }
+
     fn collect_history_turns(&self) -> Vec<(bool, String)> {
         let mut out = Vec::new();
         for item in &self.timeline {
@@ -473,13 +535,13 @@ impl GrokApp {
         if self.settings.installing {
             return;
         }
+        self.onboarding_open = true;
         self.settings.installing = true;
         self.settings.install_logs.clear();
         self.settings
             .install_logs
             .push(crate::i18n::t().install_start.into());
         self.settings.tab = SettingsTab::Cli;
-        self.settings.open = true;
         let (tx, rx) = std_mpsc::channel();
         self.install_rx = Some(rx);
         install_cli(tx);
@@ -525,7 +587,118 @@ impl GrokApp {
             self.install_rx = None;
         }
         if reconnect {
-            self.connect_agent(ctx);
+            if is_cli_authenticated() {
+                self.onboarding_open = false;
+                self.connect_agent(ctx);
+            } else {
+                self.onboarding_open = true;
+                self.login_started = false;
+            }
+        }
+        ctx.request_repaint();
+    }
+
+    fn readiness(&self) -> (bool, bool) {
+        (
+            resolve_grok_binary(&self.config.grok_path).is_ok(),
+            is_cli_authenticated(),
+        )
+    }
+
+    fn poll_readiness(&mut self, ctx: &egui::Context) {
+        let interval = if self.onboarding_open || self.login_started {
+            std::time::Duration::from_millis(750)
+        } else {
+            std::time::Duration::from_secs(5)
+        };
+        let due = self
+            .last_readiness_probe
+            .map(|last| last.elapsed() >= interval)
+            .unwrap_or(true);
+        if !due {
+            return;
+        }
+        self.last_readiness_probe = Some(std::time::Instant::now());
+        self.settings.cli_status = probe_status_fast(&self.config.grok_path);
+        let installed = self.settings.cli_status.installed;
+        let authenticated = self.settings.cli_status.authenticated;
+        if installed && authenticated {
+            self.onboarding_open = false;
+            self.login_started = false;
+            self.status = crate::i18n::t().onboarding_ready.into();
+            if !self.store.is_connected() && !self.store.is_connecting() {
+                self.pending_connect = true;
+            }
+        } else if !self.settings.open {
+            self.onboarding_open = true;
+        }
+        ctx.request_repaint();
+    }
+
+    fn start_image_generation(&mut self) {
+        if self.image_generating {
+            return;
+        }
+        if self.pending_images.len() >= attachments::MAX_ATTACHMENTS {
+            self.error_banner = Some(crate::i18n::max_attachments(attachments::MAX_ATTACHMENTS));
+            return;
+        }
+        if self.image_api_key.trim().is_empty() {
+            self.error_banner = Some(crate::i18n::t().image_api_key_missing.into());
+            return;
+        }
+        if self.image_prompt.trim().is_empty() {
+            self.error_banner = Some(crate::i18n::t().image_prompt_hint.into());
+            return;
+        }
+
+        let request = ImageGenerationRequest {
+            api_key: self.image_api_key.trim().to_string(),
+            prompt: self.image_prompt.trim().to_string(),
+            aspect_ratio: self.image_aspect_ratio.clone(),
+            resolution: self.image_resolution.clone(),
+        };
+        let (tx, rx) = std_mpsc::channel();
+        self.image_generation_rx = Some(rx);
+        self.image_generating = true;
+        self.status = crate::i18n::t().image_generating.into();
+        self.error_banner = None;
+        spawn_generate(request, tx);
+    }
+
+    fn poll_image_generation(&mut self, ctx: &egui::Context) {
+        let result = self
+            .image_generation_rx
+            .as_ref()
+            .and_then(|rx| rx.try_recv().ok());
+        let Some(ImageGenerationEvent::Finished(result)) = result else {
+            return;
+        };
+        self.image_generation_rx = None;
+        self.image_generating = false;
+        match result {
+            Ok(mut image) => {
+                let next = (self.pending_images.len() + 1) as u32;
+                if let Err(error) = image.ensure_on_disk(next) {
+                    self.error_banner = Some(format!(
+                        "{}: {error:#}",
+                        crate::i18n::t().image_generation_failed
+                    ));
+                } else {
+                    self.image_preview = Some(image.to_chat_image());
+                    self.pending_images.push(image);
+                    self.image_prompt.clear();
+                    self.image_generation_open = false;
+                    self.status = crate::i18n::t().image_generated.into();
+                }
+            }
+            Err(error) => {
+                self.error_banner = Some(format!(
+                    "{}: {error}",
+                    crate::i18n::t().image_generation_failed
+                ));
+                self.status = crate::i18n::t().error_status.into();
+            }
         }
         ctx.request_repaint();
     }
@@ -576,7 +749,7 @@ impl GrokApp {
                 self.apply_font_scale(ctx);
                 self.settings.message = Some(crate::i18n::t().settings_saved.into());
                 if self.config.show_tray {
-                    self.ensure_tray();
+                    self.ensure_tray(ctx);
                 } else {
                     self.tray = None;
                 }
@@ -618,11 +791,17 @@ impl GrokApp {
         self.config.cwd = s.cwd.trim().to_string();
         self.config.model = s.model.trim().to_string();
         self.config.effort = normalize_effort(&s.effort).to_string();
-        self.config.always_approve = s.always_approve;
+        self.config
+            .set_agent_mode(AgentMode::from_id(&s.permission_mode));
         self.config.dark_mode = s.dark_mode;
-        self.config.ui_locale = crate::i18n::Locale::from_str(&s.ui_locale)
-            .as_str()
-            .to_string();
+        if s.ui_locale == "system" {
+            self.config.ui_locale_mode = "system".into();
+        } else {
+            self.config.ui_locale_mode = "manual".into();
+            self.config.ui_locale = crate::i18n::Locale::from_str(&s.ui_locale)
+                .as_str()
+                .to_string();
+        }
         crate::i18n::set_locale(self.config.locale());
         self.config.font_scale = s.font_scale.clamp(0.85, 1.35);
         self.config.auto_connect = s.auto_connect;
@@ -643,7 +822,7 @@ impl GrokApp {
         self.settings.user_avatar_path = self.config.user_avatar_path.clone();
     }
 
-    fn ensure_tray(&mut self) {
+    fn ensure_tray(&mut self, ctx: &egui::Context) {
         if !self.config.show_tray {
             self.tray = None;
             return;
@@ -652,7 +831,7 @@ impl GrokApp {
             return;
         }
         let tip = format!("Grok  v{}", env!("CARGO_PKG_VERSION"));
-        match AppTray::try_new(&tip) {
+        match AppTray::try_new(&tip, ctx.clone()) {
             Ok(t) => {
                 self.tray = Some(t);
                 self.logs.push(crate::i18n::t().tray_enable.to_string());
@@ -683,7 +862,7 @@ impl GrokApp {
             match a {
                 TrayAction::Show => self.show_main_window(ctx),
                 TrayAction::Hide => {
-                    self.ensure_tray();
+                    self.ensure_tray(ctx);
                     self.hide_to_tray(ctx);
                 }
                 TrayAction::Toggle => {
@@ -712,7 +891,7 @@ impl GrokApp {
             return;
         }
         if self.config.close_to_tray && self.config.show_tray {
-            self.ensure_tray();
+            self.ensure_tray(ctx);
             if self.tray.is_some() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.hide_to_tray(ctx);
@@ -738,6 +917,11 @@ impl GrokApp {
     }
 
     fn open_local_session(&mut self, sess: &LocalSession, ctx: &egui::Context) {
+        if self.prompt_active() {
+            self.error_banner = Some(crate::i18n::t().err_busy.into());
+            return;
+        }
+        self.new_chat_draft = None;
         // Preview timeline from disk immediately (last N items of full parse).
         // session/load will re-broadcast the same history as session/update —
         // suppress those so we do not double-render ("轮回" duplicates).
@@ -800,7 +984,7 @@ impl GrokApp {
                     Err(e) => {
                         let _ = event_tx.send(AgentEvent::Log {
                             message: format!(
-                                "BOOTSTRAP_NEEDED:session/load 失败（已显示本地历史）: {e:#}"
+                                "BOOTSTRAP_NEEDED:{sid}:session/load 失败（已显示本地历史）: {e:#}"
                             ),
                         });
                     }
@@ -820,27 +1004,52 @@ impl GrokApp {
         if self.store.is_connecting() {
             return;
         }
+        let (installed, authenticated) = self.readiness();
+        if !installed || !authenticated {
+            self.pending_connect = false;
+            self.onboarding_open = true;
+            self.settings.cli_status = probe_status_fast(&self.config.grok_path);
+            self.store.disconnect();
+            self.status = crate::i18n::t().onboarding_required.into();
+            ctx.request_repaint();
+            return;
+        }
         self.store.begin_connect();
         self.agent_pid = None;
         self.status = crate::i18n::t().connecting_ellipsis.into();
         self.error_banner = None;
 
-        if let Some(old) = self.client.lock().take() {
-            self.rt.spawn(async move {
-                old.shutdown().await;
-            });
-        }
-
+        let generation = self.connect_generation.fetch_add(1, Ordering::SeqCst) + 1;
+        let old_client = self.client.lock().take();
         let config = self.config.clone();
         let client_slot = self.client.clone();
+        let connect_generation = self.connect_generation.clone();
         let event_tx = self.event_tx.clone();
         let repaint = ctx.clone();
 
         self.rt.spawn(async move {
+            // A reconnect owns exactly one child process. Finish shutting down
+            // the previous process before spawning its replacement.
+            if let Some(old) = old_client {
+                old.shutdown().await;
+            }
+            if connect_generation.load(Ordering::SeqCst) != generation {
+                return;
+            }
+
             match AcpClient::start(&config, event_tx.clone()).await {
                 Ok(client) => {
+                    if connect_generation.load(Ordering::SeqCst) != generation {
+                        client.shutdown().await;
+                        return;
+                    }
                     let pid = client.child_pid();
+                    let (agent_name, agent_version) = client.agent_info();
                     *client_slot.lock() = Some(Arc::new(client));
+                    let _ = event_tx.send(AgentEvent::Connected {
+                        agent_name,
+                        agent_version,
+                    });
                     if let Some(pid) = pid {
                         let _ = event_tx.send(AgentEvent::Log {
                             message: format!("AGENT_PID:{pid}"),
@@ -859,6 +1068,7 @@ impl GrokApp {
     }
 
     fn disconnect_agent(&mut self) {
+        self.connect_generation.fetch_add(1, Ordering::SeqCst);
         self.stop_stream_pump();
         if let Some(c) = self.client.lock().take() {
             self.rt.spawn(async move {
@@ -922,31 +1132,17 @@ impl GrokApp {
         }
     }
 
-    /// Open new-chat dialog (bind directory, default current).
+    /// Enter a local, unsaved new-chat draft. No ACP session is created until
+    /// the user sends the first prompt.
     fn begin_new_chat(&mut self) {
-        self.new_chat_draft = Some(NewChatDraft {
-            cwd: self.config.cwd.clone(),
-        });
+        self.begin_new_chat_in(self.config.cwd.clone());
     }
 
-    fn confirm_new_chat(&mut self, ctx: &egui::Context) {
-        let Some(draft) = self.new_chat_draft.take() else {
-            return;
-        };
-        let cwd = draft.cwd.trim().to_string();
-        if cwd.is_empty() {
-            self.error_banner = Some(crate::i18n::t().err_need_cwd.into());
+    fn begin_new_chat_in(&mut self, cwd: String) {
+        if self.prompt_active() {
+            self.error_banner = Some(crate::i18n::t().err_busy.into());
             return;
         }
-        if !std::path::Path::new(&cwd).is_dir() {
-            self.error_banner = Some(crate::i18n::err_cwd_missing(&cwd));
-            self.new_chat_draft = Some(draft);
-            return;
-        }
-
-        // Bind this session's project directory
-        self.config.cwd = cwd.clone();
-        let _ = self.config.save();
 
         self.stop_stream_pump();
         self.timeline.clear();
@@ -961,27 +1157,43 @@ impl GrokApp {
         self.message_textures.clear();
         self.input_focus_request = true;
         self.scroll_to_bottom = true;
+        self.scroll_to_item_id = None;
+        self.focused_user_msg_id = None;
+        self.needs_history_bootstrap = false;
+        self.suppress_stream_updates = false;
+        self.error_banner = None;
 
-        // Clear agent-side session so ensure_session/new uses the new cwd
-        let client = self.client.lock().clone();
-        if let Some(client) = client {
-            let event_tx = self.event_tx.clone();
-            let repaint = ctx.clone();
-            self.status = crate::i18n::new_session_status(&widgets::path_short(&cwd, 28));
-            self.rt.spawn(async move {
-                // Force a brand-new session under the chosen cwd
-                client.clear_session();
-                if let Err(e) = client.new_session(&cwd).await {
-                    let _ = event_tx.send(AgentEvent::Error {
-                        message: crate::i18n::create_session_failed(e),
-                        turn_gen: None,
-                    });
-                }
-                repaint.request_repaint();
-            });
-        } else {
-            self.connect_agent(ctx);
+        // Drop the previously loaded agent session, but deliberately do not
+        // call session/new. AcpClient::prompt_blocks creates it lazily.
+        if let Some(client) = self.client.lock().clone() {
+            client.clear_session();
         }
+
+        let cwd = cwd.trim().to_string();
+        self.status = crate::i18n::new_session_status(&widgets::path_short(&cwd, 28));
+        self.new_chat_draft = Some(NewChatDraft { cwd });
+    }
+
+    /// Commit the local draft's workspace immediately before the first send.
+    /// Returns the cwd for the prompt; errors keep the draft and input intact.
+    fn commit_new_chat_draft(&mut self) -> Option<String> {
+        let Some(draft) = self.new_chat_draft.as_ref() else {
+            return Some(self.config.cwd.clone());
+        };
+        let cwd = draft.cwd.trim().to_string();
+        if cwd.is_empty() {
+            self.error_banner = Some(crate::i18n::t().err_need_cwd.into());
+            return None;
+        }
+        if !std::path::Path::new(&cwd).is_dir() {
+            self.error_banner = Some(crate::i18n::err_cwd_missing(&cwd));
+            return None;
+        }
+
+        self.config.cwd = cwd.clone();
+        let _ = self.config.save();
+        self.new_chat_draft = None;
+        Some(cwd)
     }
 
     fn stop_stream_pump(&mut self) {
@@ -1094,17 +1306,21 @@ impl GrokApp {
             self.connect_agent(ctx);
             return;
         };
-        if self.store.busy() {
+        if self.prompt_active() {
             // Still in a turn — user should stop first; do not stack prompts.
             self.error_banner = Some(crate::i18n::t().err_busy.into());
             return;
         }
-        if client.is_prompt_inflight() {
-            // UI unlocked but RPC still open — cancel and continue after short wait in spawn
-            self.logs
-                .push("发送前检测到残留 prompt，将先 cancel".into());
-        }
-
+        // Capture the routing contract before committing the draft. Existing
+        // chats must bind this exact id; fresh drafts must force session/new.
+        let target_session_id = if self.new_chat_draft.is_some() {
+            None
+        } else if let Some(session_id) = self.store.session_id_owned() {
+            Some(session_id)
+        } else {
+            self.error_banner = Some(crate::i18n::session_binding_error());
+            return;
+        };
         let mut images = std::mem::take(&mut self.pending_images);
         self.thumb_textures.clear();
         // Persist each attachment under app data dir; send 图N:@path to agent
@@ -1120,6 +1336,10 @@ impl GrokApp {
                 return;
             }
         }
+        let Some(cwd) = self.commit_new_chat_draft() else {
+            self.pending_images = images;
+            return;
+        };
         let chat_images: Vec<ChatImage> = images.iter().map(|i| i.to_chat_image()).collect();
         let blocks = attachments::build_prompt_blocks(&text, &images);
         // User-visible text includes path notes so history matches what agent saw
@@ -1185,9 +1405,11 @@ impl GrokApp {
 
         let event_tx = self.event_tx.clone();
         let repaint = ctx.clone();
-        let cwd = self.config.cwd.clone();
         self.rt.spawn(async move {
-            match client.prompt_blocks(blocks, &cwd, bootstrap).await {
+            match client
+                .prompt_blocks(blocks, &cwd, bootstrap, target_session_id)
+                .await
+            {
                 Ok(stop) => {
                     let _ = event_tx.send(AgentEvent::PromptFinished {
                         stop_reason: stop,
@@ -1510,13 +1732,7 @@ impl GrokApp {
         }
         self.mark_running_tools_terminal("cancelled");
         self.store.clear_live_tool();
-        if let Some(client) = self.client.lock().clone() {
-            let repaint = ctx.clone();
-            self.rt.spawn(async move {
-                let _ = client.cancel().await;
-                repaint.request_repaint();
-            });
-        }
+        let _ = ctx;
         self.force_unlock_ui(crate::i18n::t().status_stopped);
     }
 
@@ -1597,6 +1813,9 @@ impl GrokApp {
                 return;
             }
         };
+        self.onboarding_open = true;
+        self.login_started = true;
+        self.last_readiness_probe = None;
         self.logs.push(format!("启动登录: {} login", bin.display()));
         // Interactive login needs a real console window (not hidden).
         // CREATE_NEW_CONSOLE so it doesn't steal/flash the GUI's console.
@@ -1665,6 +1884,31 @@ impl GrokApp {
                     self.logs.push(format!("session: {session_id}"));
                     // App-owned index entry (not automatic CLI dump)
                     self.register_app_session(&session_id);
+                }
+                AgentEvent::SessionLoaded { session_id } => {
+                    // The sidebar selection is authoritative. A stale async
+                    // load must never replace it.
+                    if self.store.session_id() == Some(session_id.as_str()) {
+                        self.status = crate::i18n::session_label(&short_id(&session_id));
+                    }
+                    self.logs.push(format!("session loaded: {session_id}"));
+                }
+                AgentEvent::ModeChanged {
+                    session_id,
+                    mode_id,
+                } => {
+                    let mode = AgentMode::from_id(&mode_id);
+                    // Ignore delayed updates from a session that is no longer
+                    // selected; the user's current composer choice wins.
+                    if session_id.as_deref().is_none()
+                        || session_id.as_deref() == self.store.session_id()
+                    {
+                        self.config.set_agent_mode(mode);
+                        let _ = self.config.save();
+                        self.status = crate::i18n::mode_switched(mode);
+                    }
+                    self.logs
+                        .push(format!("session mode: {} ({session_id:?})", mode.id()));
                 }
                 AgentEvent::MessageChunk { text } => {
                     if text.is_empty() {
@@ -1928,7 +2172,7 @@ impl GrokApp {
                     options,
                 } => {
                     // With always_approve: never block the agent on a modal.
-                    if self.config.always_approve {
+                    if self.config.agent_mode().always_approves() {
                         if let Some(opt) = Self::pick_allow_option(&options) {
                             self.logs
                                 .push(format!("自动批准权限: {title} ({tool_call_id}) → {opt}"));
@@ -1979,31 +2223,13 @@ impl GrokApp {
                     }
                 }
                 AgentEvent::TurnCompleted { stop_reason } => {
-                    // Grok emits turn_completed; unlock current busy turn without gen race.
-                    if !self.store.busy() {
-                        continue;
-                    }
-                    let gen = self.store.turn_gen();
-                    let cancelled = stop_reason == "cancelled";
-                    let st = if cancelled {
-                        crate::i18n::t().cancelled.to_string()
-                    } else if stop_reason.is_empty() || stop_reason == "end_turn" {
-                        crate::i18n::t().ready.to_string()
-                    } else {
-                        crate::i18n::finished_with(&stop_reason)
-                    };
-                    if self.finish_turn_if_gen(gen, st) {
-                        self.logs
-                            .push(format!("turn_completed → 结束本轮 gen={gen}"));
-                        if let Some(sid) = self.store.session_id_owned() {
-                            let _ = sync_record_from_disk(&sid);
-                            self.local_sessions = list_active_sessions();
-                        }
-                        if !self.chat_away_from_bottom {
-                            self.scroll_to_bottom = true;
-                        }
-                        self.maybe_notify_turn_complete(ctx, cancelled);
-                    }
+                    // Informational only. session/load can replay old
+                    // turn_completed records, and this event has no turn_gen.
+                    // The matching session/prompt response emits PromptFinished
+                    // with a generation id and is the only event allowed to
+                    // release the current turn.
+                    self.logs
+                        .push(format!("turn_completed observed: {stop_reason}"));
                 }
                 AgentEvent::Error { message, turn_gen } => {
                     // Stale prompt error after user already unlocked / started a new turn
@@ -2072,6 +2298,13 @@ impl GrokApp {
                 }
                 AgentEvent::Log { message } => {
                     if let Some(sid) = message.strip_prefix("SESSION_LOAD_DONE:") {
+                        if self.store.session_id() != Some(sid) {
+                            self.logs.push(format!(
+                                "忽略过期 session/load 完成: {sid} (current={:?})",
+                                self.store.session_id()
+                            ));
+                            continue;
+                        }
                         // History replay finished — keep disk timeline, accept new live turns only
                         self.suppress_stream_updates = false;
                         self.store.clear_stream_cursors();
@@ -2093,10 +2326,15 @@ impl GrokApp {
                         self.scroll_to_bottom = true;
                         self.logs
                             .push(format!("已加载会话 {sid}（历史不重复渲染）"));
-                    } else if message.starts_with("BOOTSTRAP_NEEDED:") {
-                        self.needs_history_bootstrap = true;
-                        self.suppress_stream_updates = false;
-                        self.logs.push(message);
+                    } else if let Some(rest) = message.strip_prefix("BOOTSTRAP_NEEDED:") {
+                        let (sid, _) = rest.split_once(':').unwrap_or((rest, ""));
+                        if self.store.session_id() == Some(sid) {
+                            self.needs_history_bootstrap = true;
+                            self.suppress_stream_updates = false;
+                            self.logs.push(message);
+                        } else {
+                            self.logs.push(format!("忽略过期 session/load 失败: {sid}"));
+                        }
                     } else if let Some(pid_s) = message.strip_prefix("AGENT_PID:") {
                         if let Ok(pid) = pid_s.trim().parse::<u32>() {
                             self.agent_pid = Some(pid);
@@ -2227,6 +2465,404 @@ impl GrokApp {
     }
 
     // ---------- UI ----------
+
+    fn ui_onboarding(&mut self, ctx: &egui::Context) {
+        if !self.onboarding_open || self.settings.open {
+            return;
+        }
+        ctx.memory_mut(|memory| {
+            if let Some(id) = memory.focused() {
+                memory.surrender_focus(id);
+            }
+        });
+        self.input_focus_request = false;
+        let s = crate::i18n::t();
+        let installed = self.settings.cli_status.installed;
+        let authenticated = installed && self.settings.cli_status.authenticated;
+        let screen = ctx.screen_rect();
+
+        egui::Area::new(egui::Id::new("onboarding_scrim"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(screen.min)
+            .interactable(true)
+            .show(ctx, |ui| {
+                ui.painter().rect_filled(screen, 0.0, theme::modal_scrim());
+                ui.allocate_rect(screen, egui::Sense::click());
+            });
+
+        let mut install_clicked = false;
+        let mut login_clicked = false;
+        let mut refresh_clicked = false;
+        let mut advanced_clicked = false;
+        egui::Window::new(s.onboarding_title)
+            .id(egui::Id::new("win_onboarding"))
+            .order(egui::Order::Foreground)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .fixed_size([520.0, 440.0])
+            .resizable(false)
+            .collapsible(false)
+            .movable(false)
+            .title_bar(false)
+            .frame(
+                Frame::NONE
+                    .fill(theme::SURFACE())
+                    .stroke(Stroke::new(1.0, theme::BORDER()))
+                    .corner_radius(16)
+                    .inner_margin(Margin::same(26)),
+            )
+            .show(ctx, |ui| {
+                ui.set_width(468.0);
+                ui.horizontal(|ui| {
+                    icons::grok_logo(ui, 32.0);
+                    ui.add_space(8.0);
+                    ui.vertical(|ui| {
+                        ui.label(
+                            RichText::new(s.onboarding_title)
+                                .size(20.0)
+                                .strong()
+                                .color(theme::TEXT()),
+                        );
+                        ui.label(
+                            RichText::new(s.onboarding_subtitle)
+                                .size(12.5)
+                                .color(theme::TEXT_3()),
+                        );
+                    });
+                });
+                ui.add_space(22.0);
+
+                let readiness_card =
+                    |ui: &mut Ui, title: &str, ready: bool, ok: &str, missing: &str| {
+                        Frame::NONE
+                            .fill(theme::SURFACE_2())
+                            .stroke(Stroke::new(1.0, theme::BORDER()))
+                            .corner_radius(10)
+                            .inner_margin(Margin::symmetric(14, 12))
+                            .show(ui, |ui| {
+                                ui.set_width(ui.available_width());
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new(if ready { "●" } else { "○" })
+                                            .size(12.0)
+                                            .color(if ready {
+                                                theme::SUCCESS()
+                                            } else {
+                                                theme::WARNING()
+                                            }),
+                                    );
+                                    ui.vertical(|ui| {
+                                        ui.label(
+                                            RichText::new(title)
+                                                .size(12.5)
+                                                .strong()
+                                                .color(theme::TEXT()),
+                                        );
+                                        ui.label(
+                                            RichText::new(if ready { ok } else { missing })
+                                                .size(11.5)
+                                                .color(theme::TEXT_3()),
+                                        );
+                                    });
+                                });
+                            });
+                    };
+
+                readiness_card(
+                    ui,
+                    s.onboarding_cli_step,
+                    installed,
+                    s.onboarding_cli_ready,
+                    s.onboarding_cli_missing,
+                );
+                ui.add_space(8.0);
+                readiness_card(
+                    ui,
+                    s.onboarding_auth_step,
+                    authenticated,
+                    s.onboarding_auth_ready,
+                    s.onboarding_auth_missing,
+                );
+
+                if self.login_started && !authenticated {
+                    ui.add_space(10.0);
+                    ui.label(
+                        RichText::new(s.onboarding_login_opened)
+                            .size(11.5)
+                            .color(theme::ACCENT()),
+                    );
+                }
+                if self.settings.installing && !self.settings.install_logs.is_empty() {
+                    ui.add_space(10.0);
+                    let start = self.settings.install_logs.len().saturating_sub(3);
+                    for line in &self.settings.install_logs[start..] {
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(line)
+                                    .size(10.5)
+                                    .monospace()
+                                    .color(theme::TEXT_3()),
+                            )
+                            .truncate(),
+                        );
+                    }
+                }
+
+                ui.add_space(18.0);
+                ui.horizontal_wrapped(|ui| {
+                    if !installed {
+                        let label = if self.settings.installing {
+                            s.onboarding_installing
+                        } else {
+                            s.onboarding_install
+                        };
+                        if primary_button(ui, label, !self.settings.installing).clicked() {
+                            install_clicked = true;
+                        }
+                    } else if !authenticated {
+                        if primary_button(ui, s.onboarding_login, true).clicked() {
+                            login_clicked = true;
+                        }
+                    }
+                    if ghost_button(ui, s.onboarding_check_again).clicked() {
+                        refresh_clicked = true;
+                    }
+                    if quiet_link(ui, s.onboarding_advanced).clicked() {
+                        advanced_clicked = true;
+                    }
+                });
+                ui.add_space(12.0);
+                ui.label(
+                    RichText::new(s.onboarding_required)
+                        .size(11.0)
+                        .color(theme::TEXT_3()),
+                );
+            });
+
+        if install_clicked {
+            self.start_cli_install();
+        }
+        if login_clicked {
+            self.run_grok_login();
+        }
+        if refresh_clicked {
+            self.last_readiness_probe = None;
+            self.settings.cli_status = probe_status_fast(&self.config.grok_path);
+        }
+        if advanced_clicked {
+            self.onboarding_open = false;
+            self.settings.open = true;
+            self.settings.tab = SettingsTab::Cli;
+            self.settings.refresh_cli();
+        }
+    }
+
+    fn ui_image_generation(&mut self, ctx: &egui::Context) {
+        if !self.image_generation_open {
+            return;
+        }
+        let s = crate::i18n::t();
+        let modal = egui::Modal::new(egui::Id::new("modal_image_generation"))
+            .backdrop_color(theme::modal_scrim())
+            .frame(
+                Frame::NONE
+                    .fill(theme::SURFACE())
+                    .stroke(Stroke::new(1.0, theme::BORDER()))
+                    .shadow(theme::card_shadow())
+                    .corner_radius(18)
+                    .inner_margin(Margin::same(0)),
+            )
+            .show(ctx, |ui| {
+                ui.set_width(560.0_f32.min((ctx.screen_rect().width() - 32.0).max(320.0)));
+
+                let mut close_clicked = false;
+                let mut generate_clicked = false;
+                let mut create_key_clicked = false;
+
+                Frame::NONE
+                    .inner_margin(Margin::symmetric(22, 17))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            icons::grok_logo(ui, 24.0);
+                            ui.add_space(4.0);
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new(s.image_generation_title)
+                                        .size(17.0)
+                                        .strong()
+                                        .color(theme::TEXT()),
+                                );
+                                ui.label(
+                                    RichText::new(s.image_generation_subtitle)
+                                        .size(11.5)
+                                        .color(theme::TEXT_3()),
+                                );
+                            });
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if widgets::icon_btn(ui, IconKind::Close, s.cancel).clicked() {
+                                    close_clicked = true;
+                                }
+                            });
+                        });
+                    });
+
+                hairline(ui);
+
+                Frame::NONE
+                    .inner_margin(Margin::symmetric(22, 18))
+                    .show(ui, |ui| {
+                        ui.label(
+                            RichText::new(s.image_prompt)
+                                .size(12.0)
+                                .strong()
+                                .color(theme::TEXT_2()),
+                        );
+                        ui.add_space(6.0);
+                        Frame::NONE
+                            .fill(theme::SURFACE_2())
+                            .stroke(Stroke::new(1.0, theme::BORDER()))
+                            .corner_radius(12)
+                            .inner_margin(Margin::same(12))
+                            .show(ui, |ui| {
+                                ui.add(
+                                    TextEdit::multiline(&mut self.image_prompt)
+                                        .hint_text(s.image_prompt_hint)
+                                        .desired_rows(4)
+                                        .desired_width(f32::INFINITY)
+                                        .frame(false),
+                                );
+                            });
+                        ui.add_space(12.0);
+
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new(s.aspect_ratio)
+                                        .size(11.0)
+                                        .color(theme::TEXT_3()),
+                                );
+                                egui::ComboBox::from_id_salt("image_aspect_ratio")
+                                    .selected_text(&self.image_aspect_ratio)
+                                    .width(138.0)
+                                    .show_ui(ui, |ui| {
+                                        for ratio in [
+                                            "auto", "1:1", "16:9", "9:16", "4:3", "3:4", "3:2",
+                                            "2:3",
+                                        ] {
+                                            ui.selectable_value(
+                                                &mut self.image_aspect_ratio,
+                                                ratio.to_string(),
+                                                ratio,
+                                            );
+                                        }
+                                    });
+                            });
+                            ui.add_space(10.0);
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new(s.resolution)
+                                        .size(11.0)
+                                        .color(theme::TEXT_3()),
+                                );
+                                egui::ComboBox::from_id_salt("image_resolution")
+                                    .selected_text(self.image_resolution.to_uppercase())
+                                    .width(108.0)
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(
+                                            &mut self.image_resolution,
+                                            "1k".into(),
+                                            "1K",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.image_resolution,
+                                            "2k".into(),
+                                            "2K",
+                                        );
+                                    });
+                            });
+                        });
+
+                        ui.add_space(14.0);
+                        Frame::NONE
+                            .fill(theme::SURFACE_2())
+                            .stroke(Stroke::new(1.0, theme::BORDER()))
+                            .corner_radius(12)
+                            .inner_margin(Margin::same(12))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new(s.image_api_key)
+                                            .size(12.0)
+                                            .strong()
+                                            .color(theme::TEXT_2()),
+                                    );
+                                    if quiet_link(ui, s.create_api_key).clicked() {
+                                        create_key_clicked = true;
+                                    }
+                                });
+                                ui.add_space(5.0);
+                                ui.add(
+                                    TextEdit::singleline(&mut self.image_api_key)
+                                        .password(true)
+                                        .hint_text(s.image_api_key_hint)
+                                        .desired_width(f32::INFINITY),
+                                );
+                                ui.add_space(4.0);
+                                ui.label(
+                                    RichText::new(s.image_api_key_session_only)
+                                        .size(10.5)
+                                        .color(theme::TEXT_3()),
+                                );
+                            });
+
+                        ui.add_space(8.0);
+                        ui.label(
+                            RichText::new(s.api_billing_separate)
+                                .size(10.5)
+                                .color(theme::TEXT_3()),
+                        );
+                    });
+
+                hairline(ui);
+
+                Frame::NONE
+                    .inner_margin(Margin::symmetric(22, 14))
+                    .show(ui, |ui| {
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            let enabled = !self.image_generating
+                                && !self.image_prompt.trim().is_empty()
+                                && !self.image_api_key.trim().is_empty();
+                            let label = if self.image_generating {
+                                s.image_generating
+                            } else {
+                                s.image_generate
+                            };
+                            if primary_button(ui, label, enabled).clicked() {
+                                generate_clicked = true;
+                            }
+                            if ghost_button(ui, s.cancel).clicked() {
+                                close_clicked = true;
+                            }
+                        });
+                    });
+
+                (close_clicked, create_key_clicked, generate_clicked)
+            });
+        let (close_clicked, create_key_clicked, generate_clicked) = modal.inner;
+
+        // Visibility is independent from the background request. This makes
+        // title-bar close, Cancel, backdrop click and Esc deterministic even
+        // while an image request is still running.
+        if close_clicked || modal.should_close() {
+            self.image_generation_open = false;
+        }
+
+        if create_key_clicked {
+            crate::spawn_util::open_url(API_KEY_URL);
+        }
+        if generate_clicked {
+            self.start_image_generation();
+        }
+    }
 
     fn open_settings(&mut self) {
         self.settings.open = true;
@@ -2582,8 +3218,7 @@ impl GrokApp {
             self.open_local_session(&s, ctx);
         }
         if let Some(path) = new_in_project {
-            // Bind new-chat draft to this project path
-            self.new_chat_draft = Some(NewChatDraft { cwd: path });
+            self.begin_new_chat_in(path);
         }
         self.focus_sessions = false;
 
@@ -2688,9 +3323,27 @@ impl GrokApp {
     fn ui_topbar(&mut self, ui: &mut Ui) {
         let edge = theme::EDGE_PAD;
         let bar_w = ui.available_width();
-        let mut need_reconnect = false;
         let mut need_disconnect = false;
         let mut need_connect = false;
+        let current_sid = self.store.session_id_owned();
+        let thread_title = current_sid
+            .as_deref()
+            .and_then(|sid| self.local_sessions.iter().find(|s| s.id == sid))
+            .map(|s| s.title.trim())
+            .filter(|s| !s.is_empty())
+            .unwrap_or(crate::i18n::t().new_chat)
+            .to_string();
+        let active_cwd = self
+            .new_chat_draft
+            .as_ref()
+            .map(|draft| draft.cwd.as_str())
+            .unwrap_or(self.config.cwd.as_str());
+        let project_name = std::path::Path::new(active_cwd)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .filter(|s| !s.is_empty())
+            .unwrap_or(active_cwd)
+            .to_string();
 
         ui.horizontal(|ui| {
             ui.set_min_height(theme::TOPBAR_H + 4.0);
@@ -2709,111 +3362,36 @@ impl GrokApp {
                 self.sidebar_open = false;
             }
 
-            // ── Model / effort — neutral chips (no blue tint chrome) ─
-            ui.scope(|ui| {
-                let p = theme::t();
-                let v = ui.visuals_mut();
-                // Quiet topbar combos: surface fill, no selection blue wash
-                v.widgets.inactive.bg_fill = if theme::is_dark() {
-                    p.surface
-                } else {
-                    Color32::from_rgb(0xF0, 0xF0, 0xF3)
-                };
-                v.widgets.hovered.bg_fill = p.hover;
-                v.widgets.active.bg_fill = p.surface_2;
-                v.widgets.open.bg_fill = if theme::is_dark() {
-                    p.surface
-                } else {
-                    Color32::WHITE
-                };
-                v.selection.bg_fill =
-                    Color32::from_rgba_unmultiplied(p.accent.r(), p.accent.g(), p.accent.b(), 28);
-
-                let mut model = self.config.model.clone();
-                let before_model = model.clone();
-                let model_label = if model.is_empty() {
-                    crate::i18n::t().model.to_string()
-                } else {
-                    widgets::truncate_chars(&model, 12)
-                };
-                egui::ComboBox::from_id_salt("top_model")
-                    .selected_text(RichText::new(model_label).size(12.5).color(theme::TEXT()))
-                    .width(112.0)
-                    .height(theme::BTN_H_SM)
-                    .show_ui(ui, |ui| {
-                        ui.label(
-                            RichText::new(crate::i18n::t().model)
-                                .size(11.0)
-                                .color(theme::TEXT_3()),
-                        );
-                        for m in MODELS {
-                            ui.selectable_value(&mut model, (*m).to_string(), *m);
-                        }
-                        let custom = model.clone();
-                        if !MODELS.contains(&custom.as_str()) && !custom.is_empty() {
-                            ui.selectable_value(&mut model, custom.clone(), custom);
-                        }
-                    });
-                if model != before_model {
-                    self.config.model = model;
-                    crate::models_cache::invalidate_models_cache();
-                    self.context_max = crate::models_cache::context_window_for(&self.config.model);
-                    self.context_used = None;
-                    let _ = self.config.save();
-                    need_reconnect = self.store.is_connected() || self.store.is_connecting();
-                }
-
-                let mut effort = normalize_effort(&self.config.effort).to_string();
-                let before_effort = effort.clone();
-                egui::ComboBox::from_id_salt("top_effort")
-                    .selected_text(
-                        RichText::new(crate::i18n::effort_chip(&effort_label(&effort)))
-                            .size(12.5)
-                            .color(theme::TEXT_2()),
+            // Thread context replaces the old model/config toolbar. Execution
+            // controls now live beside the prompt, matching the Codex desktop
+            // mental model: header = where you are, composer = how it runs.
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 1.0;
+                ui.set_max_width(if bar_w > 980.0 { 360.0 } else { 220.0 });
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(&thread_title)
+                            .size(13.5)
+                            .strong()
+                            .color(theme::TEXT()),
                     )
-                    .width(96.0)
-                    .height(theme::BTN_H_SM)
-                    .show_ui(ui, |ui| {
-                        ui.label(
-                            RichText::new(crate::i18n::t().effort_heading)
-                                .size(11.0)
-                                .color(theme::TEXT_3()),
-                        );
-                        for (id, label) in crate::config::effort_choices() {
-                            ui.selectable_value(&mut effort, id.to_string(), label);
-                        }
-                    })
-                    .response
-                    .on_hover_text(crate::i18n::t().effort_hint);
-                if effort != before_effort {
-                    self.config.effort = effort;
-                    let _ = self.config.save();
-                    need_reconnect = self.store.is_connected() || self.store.is_connecting();
-                }
+                    .truncate(),
+                )
+                .on_hover_text(&thread_title);
+                let sub = if let Some(sid) = current_sid.as_deref() {
+                    format!(
+                        "{project_name}  ·  {}",
+                        crate::i18n::session_label(&short_id(sid))
+                    )
+                } else {
+                    project_name.clone()
+                };
+                ui.add(
+                    egui::Label::new(RichText::new(sub).size(11.0).color(theme::TEXT_3()))
+                        .truncate(),
+                )
+                .on_hover_text(&self.config.cwd);
             });
-
-            // ── Cwd ───────────────────────────────────────────────
-            if bar_w > 720.0 {
-                let cwd_short = widgets::path_short(&self.config.cwd, 16);
-                ui.label(RichText::new(cwd_short).size(12.0).color(theme::TEXT_3()))
-                    .on_hover_text(format!(
-                        "{}\n{}",
-                        crate::i18n::t().working_dir,
-                        self.config.cwd
-                    ));
-            }
-
-            // ── Session id chip ───────────────────────────────────
-            if bar_w > 900.0 {
-                if let Some(sid) = &self.store.session_id_owned() {
-                    ui.label(
-                        RichText::new(crate::i18n::session_label(&short_id(sid)))
-                            .size(11.5)
-                            .color(theme::TEXT_3()),
-                    )
-                    .on_hover_text(sid);
-                }
-            }
 
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.add_space(edge);
@@ -2962,7 +3540,7 @@ impl GrokApp {
         if need_disconnect {
             self.disconnect_agent();
         }
-        if need_connect || need_reconnect {
+        if need_connect {
             self.connect_agent(ui.ctx());
         }
     }
@@ -3789,296 +4367,6 @@ impl GrokApp {
         }
     }
 
-    fn ui_new_chat_dialog(&mut self, ctx: &egui::Context) {
-        if self.new_chat_draft.is_none() {
-            return;
-        }
-        let mut cwd = self
-            .new_chat_draft
-            .as_ref()
-            .map(|d| d.cwd.clone())
-            .unwrap_or_default();
-        let mut open = true;
-        let mut confirm = false;
-        let mut cancel = false;
-        let mut pick_dir = false;
-        let mut quick_path: Option<String> = None;
-
-        let model = self.config.model.clone();
-        let effort = effort_label(&self.config.effort).to_string();
-        let current_cwd = self.config.cwd.clone();
-        // Recent project roots from session list (unique, max 5)
-        let mut recent: Vec<(String, String)> = Vec::new(); // (name, path)
-        {
-            let mut seen = HashSet::new();
-            for s in &self.local_sessions {
-                if s.cwd.is_empty() {
-                    continue;
-                }
-                let key = normalize_project_key(&s.cwd);
-                if key.is_empty() || !seen.insert(key) {
-                    continue;
-                }
-                let name = std::path::Path::new(&s.cwd)
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or(&s.cwd)
-                    .to_string();
-                recent.push((name, s.cwd.clone()));
-                if recent.len() >= 5 {
-                    break;
-                }
-            }
-        }
-
-        // Scrim under dialog
-        {
-            let screen = ctx.screen_rect();
-            egui::Area::new(egui::Id::new("new_chat_scrim"))
-                .order(egui::Order::Middle)
-                .fixed_pos(screen.min)
-                .interactable(true)
-                .sense(egui::Sense::click())
-                .show(ctx, |ui| {
-                    ui.painter().rect_filled(screen, 0.0, theme::modal_scrim());
-                    if ui.allocate_rect(screen, egui::Sense::click()).clicked() {
-                        ui.ctx().memory_mut(|m| {
-                            m.data
-                                .insert_temp(egui::Id::new("new_chat_scrim_clicked"), true);
-                        });
-                    }
-                });
-        }
-
-        let screen = ctx.screen_rect();
-        let max_h = screen.height() * 0.90;
-        let win = egui::Window::new(crate::i18n::t().new_chat_title)
-            .id(egui::Id::new("win_new_chat"))
-            .order(egui::Order::Foreground)
-            .collapsible(false)
-            .resizable(false)
-            .constrain_to(screen)
-            .max_height(max_h)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .open(&mut open)
-            .frame(
-                Frame::NONE
-                    .fill(theme::modal_fill())
-                    .stroke(theme::modal_stroke())
-                    .shadow(egui::Shadow::NONE)
-                    .inner_margin(0.0)
-                    .corner_radius(14),
-            )
-            .show(ctx, |ui| {
-                const W: f32 = 480.0;
-                ui.set_width(W);
-                ui.set_max_height(max_h - 24.0);
-
-                // Header
-                Frame::NONE
-                    .fill(theme::modal_nav_fill())
-                    .inner_margin(Margin::symmetric(20, 16))
-                    .show(ui, |ui| {
-                        ui.set_width(W - 4.0);
-                        ui.horizontal(|ui| {
-                            icons::grok_logo(ui, 22.0);
-                            ui.add_space(10.0);
-                            ui.vertical(|ui| {
-                                ui.label(
-                                    RichText::new(crate::i18n::t().new_chat_title)
-                                        .size(16.0)
-                                        .strong()
-                                        .color(theme::TEXT()),
-                                );
-                                ui.label(
-                                    RichText::new(crate::i18n::t().new_chat_body)
-                                        .size(12.0)
-                                        .color(theme::TEXT_3()),
-                                );
-                            });
-                        });
-                    });
-
-                // Body
-                Frame::NONE
-                    .inner_margin(Margin::symmetric(20, 18))
-                    .show(ui, |ui| {
-                        ui.set_width(W - 40.0);
-
-                        // Runtime chips
-                        ui.label(
-                            RichText::new(crate::i18n::t().will_use)
-                                .size(11.5)
-                                .color(theme::TEXT_3()),
-                        );
-                        ui.add_space(6.0);
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 8.0;
-                            chip_label(ui, &crate::i18n::model_chip(&model));
-                            chip_label(ui, &crate::i18n::effort_chip_full(&effort));
-                            if self.config.always_approve {
-                                chip_label(ui, crate::i18n::t().always_approve_chip);
-                            }
-                        });
-                        ui.add_space(16.0);
-
-                        // Workspace field
-                        ui.label(
-                            RichText::new(crate::i18n::t().working_dir)
-                                .size(13.0)
-                                .strong()
-                                .color(theme::TEXT()),
-                        );
-                        ui.add_space(6.0);
-                        Frame::NONE
-                            .fill(if theme::is_dark() {
-                                theme::SURFACE()
-                            } else {
-                                Color32::from_rgb(0xF7, 0xF7, 0xF9)
-                            })
-                            .stroke(theme::modal_stroke())
-                            .corner_radius(10)
-                            .inner_margin(Margin::symmetric(10, 8))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.add(
-                                        TextEdit::singleline(&mut cwd)
-                                            .desired_width(ui.available_width() - 44.0)
-                                            .frame(false)
-                                            .hint_text("D:\\path\\to\\project"),
-                                    );
-                                    if ui
-                                        .add(
-                                            egui::Button::new(
-                                                RichText::new("…")
-                                                    .size(14.0)
-                                                    .color(theme::TEXT_2()),
-                                            )
-                                            .fill(theme::HOVER())
-                                            .min_size(egui::vec2(36.0, 28.0))
-                                            .corner_radius(8),
-                                        )
-                                        .on_hover_text(crate::i18n::t().pick_folder)
-                                        .clicked()
-                                    {
-                                        pick_dir = true;
-                                    }
-                                });
-                            });
-
-                        // Path validity hint
-                        ui.add_space(6.0);
-                        let path_ok =
-                            !cwd.trim().is_empty() && std::path::Path::new(cwd.trim()).is_dir();
-                        if cwd.trim().is_empty() {
-                            ui.label(
-                                RichText::new(crate::i18n::t().need_project_dir)
-                                    .size(11.5)
-                                    .color(theme::TEXT_3()),
-                            );
-                        } else if path_ok {
-                            let name = std::path::Path::new(cwd.trim())
-                                .file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or(cwd.trim());
-                            ui.label(
-                                RichText::new(crate::i18n::will_bind_folder(&name))
-                                    .size(11.5)
-                                    .color(theme::SUCCESS()),
-                            );
-                        } else {
-                            ui.label(
-                                RichText::new(crate::i18n::t().dir_missing_check)
-                                    .size(11.5)
-                                    .color(theme::DANGER()),
-                            );
-                        }
-
-                        // Quick picks
-                        ui.add_space(14.0);
-                        ui.label(
-                            RichText::new(crate::i18n::t().quick_picks)
-                                .size(11.5)
-                                .color(theme::TEXT_3()),
-                        );
-                        ui.add_space(6.0);
-                        ui.horizontal_wrapped(|ui| {
-                            ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
-                            if quick_chip(ui, crate::i18n::t().current_dir).clicked() {
-                                quick_path = Some(current_cwd.clone());
-                            }
-                            for (name, path) in &recent {
-                                if path == &current_cwd {
-                                    continue;
-                                }
-                                if quick_chip(ui, name).clicked() {
-                                    quick_path = Some(path.clone());
-                                }
-                            }
-                        });
-
-                        ui.add_space(20.0);
-                        // Actions
-                        ui.horizontal(|ui| {
-                            if ghost_button(ui, crate::i18n::t().cancel).clicked() {
-                                cancel = true;
-                            }
-                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                if primary_button(ui, crate::i18n::t().start_chat, path_ok)
-                                    .clicked()
-                                {
-                                    confirm = true;
-                                }
-                            });
-                        });
-                    });
-            });
-
-        if pick_dir {
-            if let Some(dir) = rfd::FileDialog::new().pick_folder() {
-                cwd = dir.display().to_string();
-            }
-        }
-        if let Some(p) = quick_path {
-            cwd = p;
-        }
-
-        // Scrim click outside
-        let scrim_clicked = ctx.memory(|m| {
-            m.data
-                .get_temp::<bool>(egui::Id::new("new_chat_scrim_clicked"))
-                .unwrap_or(false)
-        });
-        if scrim_clicked {
-            ctx.memory_mut(|m| {
-                m.data
-                    .remove::<bool>(egui::Id::new("new_chat_scrim_clicked"));
-            });
-            let on_win = win
-                .as_ref()
-                .map(|r| {
-                    ctx.input(|i| i.pointer.interact_pos())
-                        .map(|p| r.response.rect.expand(8.0).contains(p))
-                        .unwrap_or(true)
-                })
-                .unwrap_or(false);
-            if !on_win {
-                cancel = true;
-            }
-        }
-
-        if !open || cancel {
-            self.new_chat_draft = None;
-            return;
-        }
-        if let Some(d) = self.new_chat_draft.as_mut() {
-            d.cwd = cwd;
-        }
-        if confirm {
-            self.confirm_new_chat(ctx);
-        }
-    }
-
     fn ui_image_preview(&mut self, ctx: &egui::Context) {
         let Some(img) = self.image_preview.clone() else {
             return;
@@ -4126,6 +4414,48 @@ impl GrokApp {
         }
     }
 
+    fn set_agent_mode(&mut self, mode: AgentMode, ctx: &egui::Context) {
+        if self.prompt_active() {
+            self.error_banner = Some(crate::i18n::t().err_busy.into());
+            return;
+        }
+        self.config.set_agent_mode(mode);
+        let _ = self.config.save();
+        self.status = crate::i18n::mode_switched(mode);
+        self.timeline.push(TimelineItem::Status {
+            id: Uuid::new_v4().to_string(),
+            text: self.status.clone(),
+        });
+
+        if let Some(client) = self.client.lock().clone() {
+            client.set_preferred_mode(mode);
+            // Apply immediately only when the ACP process is bound to the
+            // session visible in the UI. Otherwise the next exact session
+            // load/new applies the preference without touching another chat.
+            let selected = self.store.session_id_owned();
+            let bound = client.session_id();
+            if selected == bound {
+                let event_tx = self.event_tx.clone();
+                let repaint = ctx.clone();
+                self.rt.spawn(async move {
+                    if let Err(error) = client.set_mode(mode).await {
+                        let _ = event_tx.send(AgentEvent::Error {
+                            message: format!("session/set_mode: {error:#}"),
+                            turn_gen: None,
+                        });
+                    }
+                    repaint.request_repaint();
+                });
+            } else {
+                self.logs.push(format!(
+                    "mode {} queued until exact session binding (ui={selected:?}, acp={bound:?})",
+                    mode.id()
+                ));
+            }
+        }
+        self.scroll_to_bottom = true;
+    }
+
     fn apply_slash(&mut self, item: &slash::SlashItem, ctx: &egui::Context) {
         match item.action {
             SlashAction::InsertPrompt => {
@@ -4163,17 +4493,12 @@ impl GrokApp {
             }
             SlashAction::ToggleYolo => {
                 self.input.clear();
-                self.config.always_approve = !self.config.always_approve;
-                let _ = self.config.save();
-                self.status = if self.config.always_approve {
-                    crate::i18n::t().yolo_on.into()
+                let next = if self.config.agent_mode() == AgentMode::AlwaysApprove {
+                    AgentMode::Normal
                 } else {
-                    crate::i18n::t().yolo_off.into()
+                    AgentMode::AlwaysApprove
                 };
-                self.timeline.push(TimelineItem::Status {
-                    id: Uuid::new_v4().to_string(),
-                    text: self.status.clone(),
-                });
+                self.set_agent_mode(next, ctx);
             }
             SlashAction::ClearChat => {
                 self.input.clear();
@@ -4206,13 +4531,72 @@ impl GrokApp {
     fn ui_composer(&mut self, ui: &mut Ui, ctx: &egui::Context) {
         self.handle_file_drops(ctx);
 
-        let can_send = !self.store.busy()
+        let draft_mode = self.new_chat_draft.is_some();
+        let draft_cwd_valid = self
+            .new_chat_draft
+            .as_ref()
+            .map(|draft| {
+                !draft.cwd.trim().is_empty() && std::path::Path::new(draft.cwd.trim()).is_dir()
+            })
+            .unwrap_or(true);
+        let prompt_active = self.prompt_active();
+        let cycle_mode_shortcut =
+            ctx.input_mut(|input| input.consume_key(Modifiers::SHIFT, Key::Tab));
+        let can_send = !prompt_active
             && self.store.is_connected()
+            && draft_cwd_valid
             && (!self.input.trim().is_empty() || !self.pending_images.is_empty());
 
         let pending: Vec<PendingImage> = self.pending_images.clone();
         let hovering_files = ctx.input(|i| !i.raw.hovered_files.is_empty());
         let p = theme::t();
+        let mut picked_model: Option<String> = None;
+        let mut picked_effort: Option<String> = None;
+        let mut picked_mode: Option<AgentMode> = if cycle_mode_shortcut && !prompt_active {
+            Some(self.config.agent_mode().next())
+        } else {
+            None
+        };
+        let mut attach_requested = false;
+        let mut generate_requested = false;
+        let mut paste_requested = false;
+        let mut workspace_choice: Option<String> = None;
+        let mut browse_workspace = false;
+        let project_path = self
+            .new_chat_draft
+            .as_ref()
+            .map(|draft| draft.cwd.clone())
+            .unwrap_or_else(|| self.config.cwd.clone());
+        let project_name = std::path::Path::new(&project_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .filter(|s| !s.is_empty())
+            .unwrap_or(crate::i18n::t().need_project_dir)
+            .to_string();
+        let mut recent_projects: Vec<(String, String)> = Vec::new();
+        if draft_mode {
+            let mut seen = HashSet::new();
+            for path in std::iter::once(project_path.clone()).chain(
+                self.local_sessions
+                    .iter()
+                    .map(|session| session.cwd.clone()),
+            ) {
+                let key = normalize_project_key(&path);
+                if key.is_empty() || !std::path::Path::new(&path).is_dir() || !seen.insert(key) {
+                    continue;
+                }
+                let name = std::path::Path::new(&path)
+                    .file_name()
+                    .and_then(|part| part.to_str())
+                    .filter(|part| !part.is_empty())
+                    .unwrap_or(path.as_str())
+                    .to_string();
+                recent_projects.push((name, path));
+                if recent_projects.len() >= 7 {
+                    break;
+                }
+            }
+        }
 
         // Slash palette above composer
         let mut slash_pick: Option<&'static slash::SlashItem> = None;
@@ -4249,20 +4633,33 @@ impl GrokApp {
             } else {
                 Color32::WHITE
             })
-            .shadow(theme::elev_shadow())
-            // Soft surface only — border only while dragging files in
+            .shadow(if theme::is_dark() {
+                egui::Shadow {
+                    offset: [0, 6],
+                    blur: 24,
+                    spread: 0,
+                    color: Color32::from_black_alpha(72),
+                }
+            } else {
+                egui::Shadow {
+                    offset: [0, 5],
+                    blur: 22,
+                    spread: 0,
+                    color: Color32::from_black_alpha(18),
+                }
+            })
+            // A single quiet outline keeps the floating workbench distinct
+            // without the heavy double-card appearance.
             .stroke(if hovering_files {
                 Stroke::new(1.0, p.accent)
-            } else if theme::is_dark() {
-                Stroke::NONE
             } else {
-                Stroke::new(1.0, Color32::from_black_alpha(12))
+                Stroke::new(1.0, p.border)
             })
             .inner_margin(Margin::symmetric(
+                theme::SPACE_LG as i8,
                 theme::SPACE_MD as i8,
-                theme::SPACE_MD as i8 - 2,
             ))
-            .corner_radius(theme::RADIUS_LG)
+            .corner_radius(14)
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
 
@@ -4274,6 +4671,110 @@ impl GrokApp {
                     );
                     ui.add_space(theme::SPACE_XS);
                 }
+
+                // A new chat stays a local draft. Its project selector lives in
+                // the composer and does not create an ACP session by itself.
+                let context_response = Frame::NONE
+                    .fill(if draft_mode {
+                        theme::SURFACE_2()
+                    } else {
+                        Color32::TRANSPARENT
+                    })
+                    .stroke(if draft_mode {
+                        Stroke::new(1.0, theme::BORDER())
+                    } else {
+                        Stroke::NONE
+                    })
+                    .corner_radius(theme::RADIUS_PILL)
+                    .inner_margin(Margin::symmetric(if draft_mode { 10 } else { 0 }, 5))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 7.0;
+                            let (icon_rect, _) = ui
+                                .allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+                            icons::paint_in(ui, IconKind::Folder, icon_rect, theme::TEXT_2());
+                            ui.label(
+                                RichText::new(widgets::truncate_chars(&project_name, 28))
+                                    .size(12.0)
+                                    .color(if draft_cwd_valid {
+                                        theme::TEXT_2()
+                                    } else {
+                                        theme::DANGER()
+                                    }),
+                            );
+                            if draft_mode {
+                                let (chevron_rect, _) = ui.allocate_exact_size(
+                                    egui::vec2(13.0, 13.0),
+                                    egui::Sense::hover(),
+                                );
+                                icons::paint_in(
+                                    ui,
+                                    IconKind::ChevronDown,
+                                    chevron_rect,
+                                    theme::TEXT_3(),
+                                );
+                            }
+                        });
+                    })
+                    .response
+                    .interact(if draft_mode {
+                        egui::Sense::click()
+                    } else {
+                        egui::Sense::hover()
+                    })
+                    .on_hover_text(if draft_mode {
+                        crate::i18n::t().pick_folder
+                    } else {
+                        project_path.as_str()
+                    });
+
+                if draft_mode {
+                    let popup_id = ui.make_persistent_id("new_chat_workspace_picker");
+                    if context_response.clicked() {
+                        ui.memory_mut(|memory| memory.toggle_popup(popup_id));
+                    }
+                    egui::popup::popup_above_or_below_widget(
+                        ui,
+                        popup_id,
+                        &context_response,
+                        egui::AboveOrBelow::Above,
+                        egui::popup::PopupCloseBehavior::CloseOnClickOutside,
+                        |ui| {
+                            ui.set_min_width(300.0);
+                            ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
+                            ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+                            ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::NONE;
+                            ui.label(
+                                RichText::new(crate::i18n::t().projects)
+                                    .size(11.0)
+                                    .strong()
+                                    .color(theme::TEXT_3()),
+                            );
+                            ui.add_space(4.0);
+                            for (name, path) in &recent_projects {
+                                let selected = normalize_project_key(path)
+                                    == normalize_project_key(&project_path);
+                                if ui
+                                    .selectable_label(
+                                        selected,
+                                        format!("{}  {}", if selected { "✓" } else { " " }, name),
+                                    )
+                                    .on_hover_text(path)
+                                    .clicked()
+                                {
+                                    workspace_choice = Some(path.clone());
+                                    ui.memory_mut(|memory| memory.close_popup());
+                                }
+                            }
+                            ui.separator();
+                            if ui.button(crate::i18n::t().pick_folder).clicked() {
+                                browse_workspace = true;
+                                ui.memory_mut(|memory| memory.close_popup());
+                            }
+                        },
+                    );
+                }
+                ui.add_space(theme::SPACE_SM);
 
                 if !pending.is_empty() {
                     // Cap attachment strip so many thumbs don't grow the panel forever.
@@ -4423,28 +4924,56 @@ impl GrokApp {
                 }
 
                 ui.add_space(theme::SPACE_SM);
-                // Toolbar row — fixed control height
+                // One low-noise toolbar: add actions on the left, runtime choices
+                // and a circular send control on the right.
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = theme::SPACE_SM;
+                    ui.spacing_mut().item_spacing.x = 8.0;
                     ui.set_min_height(theme::BTN_H_LG);
 
-                    let attach =
-                        widgets::icon_btn(ui, IconKind::Paperclip, crate::i18n::t().attach_tip);
-                    if attach.clicked() {
-                        self.pick_image_files();
+                    let add_response =
+                        widgets::icon_btn(ui, IconKind::Plus, crate::i18n::t().attach_tip);
+                    let add_popup_id = ui.make_persistent_id("composer_add_actions");
+                    if add_response.clicked() {
+                        ui.memory_mut(|memory| memory.toggle_popup(add_popup_id));
                     }
-                    ui.label(
-                        RichText::new(crate::i18n::t().attach)
-                            .size(12.5)
-                            .color(theme::TEXT_3()),
+                    egui::popup::popup_above_or_below_widget(
+                        ui,
+                        add_popup_id,
+                        &add_response,
+                        egui::AboveOrBelow::Above,
+                        egui::popup::PopupCloseBehavior::CloseOnClickOutside,
+                        |ui| {
+                            ui.set_min_width(190.0);
+                            ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
+                            ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+                            ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::NONE;
+                            if ui
+                                .button(
+                                    crate::i18n::t()
+                                        .attach_tip
+                                        .split('·')
+                                        .next()
+                                        .unwrap_or(crate::i18n::t().attach_tip)
+                                        .trim(),
+                                )
+                                .clicked()
+                            {
+                                attach_requested = true;
+                                ui.memory_mut(|memory| memory.close_popup());
+                            }
+                            if self.clipboard_image_ready
+                                && ui.button(crate::i18n::t().paste_image).clicked()
+                            {
+                                paste_requested = true;
+                                ui.memory_mut(|memory| memory.close_popup());
+                            }
+                            if ui.button(crate::i18n::t().generate_image).clicked() {
+                                generate_requested = true;
+                                ui.memory_mut(|memory| memory.close_popup());
+                            }
+                        },
                     );
-                    if self.clipboard_image_ready
-                        && ghost_button(ui, crate::i18n::t().paste_image).clicked()
-                    {
-                        self.paste_probe_frames = 10;
-                        self.status = crate::i18n::t().status_reading_clipboard.into();
-                        ctx.request_repaint();
-                    }
+
                     if !pending.is_empty() {
                         ui.label(
                             RichText::new(format!("{}", pending.len()))
@@ -4453,13 +4982,83 @@ impl GrokApp {
                         );
                     }
 
+                    let current_mode = self.config.agent_mode();
+                    let permission_label = crate::i18n::agent_mode_label(current_mode);
+                    let (dot_rect, _) =
+                        ui.allocate_exact_size(egui::vec2(8.0, 20.0), egui::Sense::hover());
+                    ui.painter().circle_filled(
+                        dot_rect.center(),
+                        3.0,
+                        match current_mode {
+                            AgentMode::Normal => theme::TEXT_3(),
+                            AgentMode::Plan => theme::ACCENT(),
+                            AgentMode::AlwaysApprove => theme::WARNING(),
+                        },
+                    );
+                    ui.menu_button(
+                        RichText::new(permission_label)
+                            .size(11.5)
+                            .color(match current_mode {
+                                AgentMode::Normal => theme::TEXT_3(),
+                                AgentMode::Plan => theme::ACCENT(),
+                                AgentMode::AlwaysApprove => theme::WARNING(),
+                            }),
+                        |ui| {
+                            ui.set_min_width(236.0);
+                            for mode in AgentMode::ALL {
+                                let selected = current_mode == mode;
+                                if ui
+                                    .selectable_label(
+                                        selected,
+                                        RichText::new(crate::i18n::agent_mode_label(mode))
+                                            .size(12.5)
+                                            .strong(),
+                                    )
+                                    .clicked()
+                                {
+                                    picked_mode = Some(mode);
+                                    ui.close_menu();
+                                }
+                                ui.label(
+                                    RichText::new(crate::i18n::agent_mode_description(mode))
+                                        .size(11.0)
+                                        .color(theme::TEXT_3()),
+                                );
+                                if mode != AgentMode::AlwaysApprove {
+                                    ui.add_space(5.0);
+                                }
+                            }
+                        },
+                    )
+                    .response
+                    .on_hover_text(crate::i18n::mode_switch_hint());
+
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        // Circular paper-plane send (mock style)
-                        let send_size = 36.0;
-                        if self.store.busy() {
-                            if primary_button(ui, crate::i18n::t().stop, true).clicked() {
+                        let send_size = 38.0;
+                        if prompt_active {
+                            let (stop_rect, stop_response) = ui.allocate_exact_size(
+                                egui::vec2(send_size, send_size),
+                                egui::Sense::click(),
+                            );
+                            if ui.is_rect_visible(stop_rect) {
+                                ui.painter().circle_filled(
+                                    stop_rect.center(),
+                                    19.0,
+                                    theme::SEND_BTN(),
+                                );
+                                ui.painter().rect_filled(
+                                    egui::Rect::from_center_size(
+                                        stop_rect.center(),
+                                        egui::vec2(10.0, 10.0),
+                                    ),
+                                    2.0,
+                                    theme::ON_ACCENT(),
+                                );
+                            }
+                            if stop_response.clicked() {
                                 self.cancel_prompt(ctx);
                             }
+                            stop_response.on_hover_text(crate::i18n::t().stop);
                         } else {
                             let fill = if can_send {
                                 theme::SEND_BTN()
@@ -4482,18 +5081,137 @@ impl GrokApp {
                             }
                             if r.hovered() {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                ui.painter().circle_stroke(
+                                    srect.center(),
+                                    send_size * 0.5,
+                                    Stroke::new(
+                                        1.0,
+                                        if can_send {
+                                            theme::ACCENT()
+                                        } else {
+                                            theme::BORDER()
+                                        },
+                                    ),
+                                );
                             }
                             if r.clicked() && can_send {
                                 self.send_prompt(ctx);
                             }
                             r.on_hover_text(crate::i18n::t().send_tip);
                         }
+
+                        ui.menu_button(
+                            RichText::new(crate::i18n::effort_chip(&effort_label(
+                                &self.config.effort,
+                            )))
+                            .size(11.5)
+                            .color(theme::TEXT_2()),
+                            |ui| {
+                                ui.set_min_width(170.0);
+                                ui.label(
+                                    RichText::new(crate::i18n::t().effort_heading)
+                                        .size(11.0)
+                                        .color(theme::TEXT_3()),
+                                );
+                                for (id, label) in crate::config::effort_choices() {
+                                    if ui
+                                        .selectable_label(
+                                            normalize_effort(&self.config.effort) == id,
+                                            label,
+                                        )
+                                        .clicked()
+                                    {
+                                        picked_effort = Some(id.to_string());
+                                        ui.close_menu();
+                                    }
+                                }
+                            },
+                        )
+                        .response
+                        .on_hover_text(crate::i18n::t().effort_hint);
+                        ui.menu_button(
+                            RichText::new(widgets::truncate_chars(&self.config.model, 14))
+                                .size(11.5)
+                                .color(theme::TEXT_2()),
+                            |ui| {
+                                ui.set_min_width(170.0);
+                                ui.label(
+                                    RichText::new(crate::i18n::t().model)
+                                        .size(11.0)
+                                        .color(theme::TEXT_3()),
+                                );
+                                for model in MODELS {
+                                    if ui
+                                        .selectable_label(self.config.model == *model, *model)
+                                        .clicked()
+                                    {
+                                        picked_model = Some((*model).to_string());
+                                        ui.close_menu();
+                                    }
+                                }
+                            },
+                        )
+                        .response
+                        .on_hover_text(crate::i18n::t().model);
                     });
                 });
-                ui.add_space(4.0);
-                let hint_keys = crate::i18n::t().composer_hint;
-                ui.label(RichText::new(hint_keys).size(11.0).color(theme::TEXT_3()));
             });
+
+        if let Some(path) = workspace_choice {
+            if let Some(draft) = self.new_chat_draft.as_mut() {
+                draft.cwd = path;
+            }
+            self.input_focus_request = true;
+        }
+        if browse_workspace {
+            if let Some(dir) = rfd::FileDialog::new()
+                .set_directory(&project_path)
+                .pick_folder()
+            {
+                if let Some(draft) = self.new_chat_draft.as_mut() {
+                    draft.cwd = dir.display().to_string();
+                }
+                self.input_focus_request = true;
+            }
+        }
+        if attach_requested {
+            self.pick_image_files();
+        }
+        if generate_requested {
+            self.image_generation_open = true;
+        }
+        if paste_requested {
+            self.paste_probe_frames = 10;
+            self.status = crate::i18n::t().status_reading_clipboard.into();
+            ctx.request_repaint();
+        }
+
+        if let Some(mode) = picked_mode {
+            self.set_agent_mode(mode, ctx);
+        }
+
+        let reconnect = self.store.is_connected() || self.store.is_connecting();
+        if let Some(model) = picked_model {
+            if model != self.config.model {
+                self.config.model = model;
+                crate::models_cache::invalidate_models_cache();
+                self.context_max = crate::models_cache::context_window_for(&self.config.model);
+                self.context_used = None;
+                let _ = self.config.save();
+                if reconnect {
+                    self.connect_agent(ctx);
+                }
+            }
+        }
+        if let Some(effort) = picked_effort {
+            if effort != normalize_effort(&self.config.effort) {
+                self.config.effort = effort;
+                let _ = self.config.save();
+                if reconnect {
+                    self.connect_agent(ctx);
+                }
+            }
+        }
     }
 
     fn ui_logs(&mut self, ctx: &egui::Context) {
@@ -4998,38 +5716,6 @@ fn short_id(id: &str) -> String {
     }
 }
 
-fn chip_label(ui: &mut Ui, text: &str) {
-    Frame::NONE
-        .fill(if theme::is_dark() {
-            Color32::from_rgba_unmultiplied(255, 255, 255, 14)
-        } else {
-            Color32::from_rgb(0xEE, 0xEE, 0xF2)
-        })
-        .corner_radius(theme::RADIUS_PILL)
-        .inner_margin(Margin::symmetric(10, 4))
-        .show(ui, |ui| {
-            ui.label(RichText::new(text).size(11.5).color(theme::TEXT_2()));
-        });
-}
-
-fn quick_chip(ui: &mut Ui, text: &str) -> egui::Response {
-    let resp = ui.add(
-        egui::Button::new(RichText::new(text).size(12.0).color(theme::TEXT_2()))
-            .fill(if theme::is_dark() {
-                theme::SURFACE()
-            } else {
-                Color32::from_rgb(0xF0, 0xF0, 0xF3)
-            })
-            .stroke(Stroke::new(1.0, theme::DIVIDER()))
-            .corner_radius(theme::RADIUS_PILL)
-            .min_size(egui::vec2(0.0, 28.0)),
-    );
-    if resp.hovered() {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-    }
-    resp
-}
-
 /// OS-level Ctrl+V held? (bypasses egui-winit swallowing Key::V on paste)
 fn raw_os_ctrl_v_down() -> bool {
     #[cfg(windows)]
@@ -5130,7 +5816,7 @@ impl eframe::App for GrokApp {
                 .rect_filled(screen, 0.0, theme::BG());
         }
         // After UI is up, connect agent once
-        if self.pending_connect && self.frame_count == 3 {
+        if self.pending_connect && self.frame_count >= 3 {
             self.pending_connect = false;
             self.connect_agent(ctx);
         }
@@ -5143,7 +5829,7 @@ impl eframe::App for GrokApp {
         if self.frame_count == 4
             || (self.config.show_tray && self.tray.is_none() && self.frame_count == 30)
         {
-            self.ensure_tray();
+            self.ensure_tray(ctx);
         }
         // Drop tray if disabled in settings
         if !self.config.show_tray && self.tray.is_some() {
@@ -5157,8 +5843,8 @@ impl eframe::App for GrokApp {
             crate::win_chrome::apply_titlebar_theme(self.config.dark_mode);
         }
 
-        self.handle_close_to_tray(ctx);
         self.poll_tray(ctx);
+        self.handle_close_to_tray(ctx);
 
         // MUST run before any TextEdit: intercept Ctrl+V image paste so the
         // input field cannot swallow it.
@@ -5174,6 +5860,8 @@ impl eframe::App for GrokApp {
         self.heal_tool_display_only();
         self.reconcile_idle_display();
         self.poll_install(ctx);
+        self.poll_image_generation(ctx);
+        self.poll_readiness(ctx);
         self.poll_update_check(ctx);
 
         // Live session list rescan while streaming (titles update on disk)
@@ -5192,6 +5880,9 @@ impl eframe::App for GrokApp {
         if self.store.busy()
             || self.store.is_connecting()
             || self.settings.installing
+            || self.image_generating
+            || self.onboarding_open
+            || self.login_started
             || self.pending_connect
             || self.pending_update_check
             || self.update.checking
@@ -5258,8 +5949,9 @@ impl eframe::App for GrokApp {
         self.ui_rename_dialog(ctx);
         self.ui_archive_panel(ctx);
         self.ui_import_panel(ctx);
-        self.ui_new_chat_dialog(ctx);
+        self.ui_image_generation(ctx);
         self.ui_image_preview(ctx);
+        self.ui_onboarding(ctx);
     }
 
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {
@@ -5267,6 +5959,7 @@ impl eframe::App for GrokApp {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.connect_generation.fetch_add(1, Ordering::SeqCst);
         self.stop_stream_pump();
         if let Some(c) = self.client.lock().take() {
             self.rt.block_on(async move {

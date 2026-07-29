@@ -112,6 +112,18 @@ pub fn session_update_to_events(update: &Value) -> Vec<AgentEvent> {
                 .unwrap_or_default();
             vec![AgentEvent::Plan { entries }]
         }
+        "current_mode_update" => {
+            let mode_id = update
+                .get("currentModeId")
+                .or_else(|| update.get("current_mode_id"))
+                .and_then(|value| value.as_str())
+                .unwrap_or("default")
+                .to_string();
+            vec![AgentEvent::ModeChanged {
+                session_id: None,
+                mode_id,
+            }]
+        }
         // Official / Grok: turn finished (host must unlock even if RPC races)
         "turn_completed" | "prompt_complete" | "prompt_completed" | "turn_complete" => {
             let reason = update

@@ -53,62 +53,61 @@ pub fn t() -> Palette {
     }
 }
 
-// Developer dark (ui-ux-pro-max: Code dark + run green)
+// Codex-like workbench dark: quiet neutrals, one blue action accent.
 const DARK_PALETTE: Palette = Palette {
-    accent: Color32::from_rgb(0x60, 0xA5, 0xFA), // blue-400
-    accent_dim: Color32::from_rgb(0x3B, 0x82, 0xF6),
-    bg: Color32::from_rgb(0x0F, 0x11, 0x15),
-    sidebar: Color32::from_rgb(0x13, 0x16, 0x1B),
-    surface: Color32::from_rgb(0x18, 0x1B, 0x21),
-    surface_2: Color32::from_rgb(0x1E, 0x22, 0x29),
-    hover: Color32::from_rgb(0x24, 0x28, 0x30),
-    selected: Color32::from_rgb(0x2A, 0x30, 0x3A),
-    border: Color32::from_rgb(0x2E, 0x34, 0x3E),
-    divider: Color32::from_rgb(0x22, 0x26, 0x2E),
-    text: Color32::from_rgb(0xF1, 0xF5, 0xF9), // slate-100 — AA
-    text_2: Color32::from_rgb(0x94, 0xA3, 0xB8), // slate-400
-    text_3: Color32::from_rgb(0x64, 0x74, 0x8B), // slate-500
+    accent: Color32::from_rgb(0x7A, 0xA2, 0xF7),
+    accent_dim: Color32::from_rgb(0x5C, 0x82, 0xD8),
+    bg: Color32::from_rgb(0x12, 0x12, 0x13),
+    sidebar: Color32::from_rgb(0x17, 0x17, 0x19),
+    surface: Color32::from_rgb(0x1C, 0x1C, 0x1F),
+    surface_2: Color32::from_rgb(0x23, 0x23, 0x27),
+    hover: Color32::from_rgb(0x28, 0x28, 0x2C),
+    selected: Color32::from_rgb(0x2D, 0x2D, 0x32),
+    border: Color32::from_rgb(0x32, 0x32, 0x37),
+    divider: Color32::from_rgb(0x25, 0x25, 0x29),
+    text: Color32::from_rgb(0xF2, 0xF2, 0xF3),
+    text_2: Color32::from_rgb(0xB0, 0xB0, 0xB7),
+    text_3: Color32::from_rgb(0x78, 0x78, 0x82),
     success: Color32::from_rgb(0x22, 0xC5, 0x5E),
     warning: Color32::from_rgb(0xF5, 0x9E, 0x0B),
     danger: Color32::from_rgb(0xEF, 0x44, 0x44),
     purple: Color32::from_rgb(0xA7, 0x8B, 0xFA),
-    // Solid blue command bubble (readable on near-black stage)
-    user_bubble: Color32::from_rgb(0x25, 0x63, 0xEB),
-    user_bubble_border: Color32::from_rgb(0x3B, 0x82, 0xF6),
-    tool_row: Color32::from_rgb(0x16, 0x19, 0x20),
-    code_bg: Color32::from_rgb(0x0B, 0x0D, 0x11),
-    avatar: Color32::from_rgb(0x60, 0xA5, 0xFA),
-    send_btn: Color32::from_rgb(0x3B, 0x82, 0xF6),
+    user_bubble: Color32::from_rgb(0x25, 0x27, 0x2D),
+    user_bubble_border: Color32::from_rgb(0x37, 0x3A, 0x43),
+    tool_row: Color32::from_rgb(0x19, 0x19, 0x1C),
+    code_bg: Color32::from_rgb(0x0D, 0x0D, 0x0F),
+    avatar: Color32::from_rgb(0x7A, 0xA2, 0xF7),
+    send_btn: Color32::from_rgb(0x5C, 0x82, 0xD8),
     on_accent: Color32::WHITE,
-    ring: Color32::from_rgb(0x60, 0xA5, 0xFA),
-    chip: Color32::from_rgb(0x1E, 0x22, 0x29),
-    chip_border: Color32::from_rgb(0x33, 0x41, 0x55),
+    ring: Color32::from_rgb(0x7A, 0xA2, 0xF7),
+    chip: Color32::from_rgb(0x20, 0x20, 0x23),
+    chip_border: Color32::from_rgb(0x34, 0x34, 0x39),
 };
 
-// Linear / Cursor light — monochrome + blue (WCAG body contrast)
+// Codex-like workbench light: paper stage, slightly tinted navigation.
 const LIGHT_PALETTE: Palette = Palette {
-    accent: Color32::from_rgb(0x25, 0x63, 0xEB), // blue-600
-    accent_dim: Color32::from_rgb(0x1D, 0x4E, 0xD8),
-    bg: Color32::from_rgb(0xF7, 0xF7, 0xF8),
-    sidebar: Color32::from_rgb(0xEE, 0xEE, 0xF0),
+    accent: Color32::from_rgb(0x32, 0x5D, 0xC8),
+    accent_dim: Color32::from_rgb(0x28, 0x4D, 0xAA),
+    bg: Color32::from_rgb(0xFC, 0xFC, 0xFD),
+    sidebar: Color32::from_rgb(0xF3, 0xF3, 0xF5),
     surface: Color32::from_rgb(0xFF, 0xFF, 0xFF),
-    surface_2: Color32::from_rgb(0xF0, 0xF0, 0xF3),
-    hover: Color32::from_rgb(0xE4, 0xE4, 0xE7),
-    selected: Color32::from_rgb(0xDC, 0xDC, 0xE0),
-    border: Color32::from_rgb(0xE4, 0xE4, 0xE7),
-    divider: Color32::from_rgb(0xEB, 0xEB, 0xEE),
-    text: Color32::from_rgb(0x09, 0x09, 0x0B), // zinc-950 — max contrast
-    text_2: Color32::from_rgb(0x52, 0x52, 0x5B), // zinc-600
-    text_3: Color32::from_rgb(0x71, 0x71, 0x7A), // zinc-500 — still ≥4.5 on white for large
+    surface_2: Color32::from_rgb(0xF4, 0xF4, 0xF6),
+    hover: Color32::from_rgb(0xE9, 0xE9, 0xEC),
+    selected: Color32::from_rgb(0xE2, 0xE2, 0xE6),
+    border: Color32::from_rgb(0xE4, 0xE4, 0xE8),
+    divider: Color32::from_rgb(0xED, 0xED, 0xF0),
+    text: Color32::from_rgb(0x18, 0x18, 0x1B),
+    text_2: Color32::from_rgb(0x5B, 0x5B, 0x63),
+    text_3: Color32::from_rgb(0x7B, 0x7B, 0x84),
     success: Color32::from_rgb(0x16, 0xA3, 0x4A),
     warning: Color32::from_rgb(0xD9, 0x77, 0x06),
     danger: Color32::from_rgb(0xDC, 0x26, 0x26),
     purple: Color32::from_rgb(0x7C, 0x3A, 0xED),
-    // Soft blue command bubble (clear on #F7F7F8 stage)
-    user_bubble: Color32::from_rgb(0xDB, 0xE7, 0xFF),
-    user_bubble_border: Color32::from_rgb(0xB4, 0xCC, 0xF5),
+    user_bubble: Color32::from_rgb(0xF0, 0xF2, 0xF6),
+    user_bubble_border: Color32::from_rgb(0xDE, 0xE1, 0xE8),
     tool_row: Color32::from_rgb(0xF3, 0xF4, 0xF6),
-    code_bg: Color32::from_rgb(0xF4, 0xF4, 0xF5),
+    // Slightly cooler / more inset than stage so fenced blocks read as code, not prose.
+    code_bg: Color32::from_rgb(0xEE, 0xF0, 0xF4),
     avatar: Color32::from_rgb(0x25, 0x63, 0xEB),
     send_btn: Color32::from_rgb(0x25, 0x63, 0xEB),
     on_accent: Color32::WHITE,
@@ -117,10 +116,10 @@ const LIGHT_PALETTE: Palette = Palette {
     chip_border: Color32::from_rgb(0xE4, 0xE4, 0xE7),
 };
 
-pub const SIDEBAR_WIDTH: f32 = 248.0;
-/// Reading column — tables + code need air but not absurd margins
-pub const CHAT_MAX_WIDTH: f32 = 780.0;
-pub const EDGE_PAD: f32 = 24.0;
+pub const SIDEBAR_WIDTH: f32 = 264.0;
+/// Codex-like document width: roomy for code/tables, still readable as prose.
+pub const CHAT_MAX_WIDTH: f32 = 840.0;
+pub const EDGE_PAD: f32 = 28.0;
 /// Left rail for assistant prose alignment
 pub const CHAT_RAIL: f32 = 3.0;
 pub const CHAT_MARK: f32 = 16.0;
@@ -131,7 +130,7 @@ pub const COMPOSER_MIN_H: f32 = 44.0;
 pub const COMPOSER_PANEL_H: f32 = 148.0;
 pub const COMPOSER_THUMB_EXTRA: f32 = 76.0;
 /// Default / empty editor height (~2 lines).
-pub const COMPOSER_TEXT_H: f32 = 48.0;
+pub const COMPOSER_TEXT_H: f32 = 42.0;
 /// Cap so long paste / multi-line prompts never push chat off-screen.
 pub const COMPOSER_TEXT_MAX_H: f32 = 168.0;
 /// Attachment strip cap (many thumbs stay scrollable).
@@ -151,7 +150,7 @@ pub const SESSION_ROW_H: f32 = 32.0;
 pub const SESSION_ROW_GAP: f32 = 2.0;
 pub const PROJECT_ROW_H: f32 = 32.0;
 pub const TREE_L1_H: f32 = 28.0;
-pub const TOPBAR_H: f32 = 40.0;
+pub const TOPBAR_H: f32 = 48.0;
 pub const TOUCH_MIN: f32 = BTN_H_MD;
 pub const TOUCH_CTA: f32 = BTN_H_LG;
 
@@ -299,12 +298,7 @@ pub fn CODE_BG() -> Color32 {
 }
 
 pub fn on_user_bubble() -> Color32 {
-    if is_dark() {
-        // Solid blue bubble → white body text
-        Color32::WHITE
-    } else {
-        Color32::from_rgb(0x0F, 0x17, 0x2A)
-    }
+    t().text
 }
 
 pub fn separator_stroke() -> Stroke {
@@ -523,6 +517,9 @@ pub fn apply(ctx: &egui::Context, dark: bool) {
     visuals.window_fill = p.surface;
     visuals.window_stroke = Stroke::new(1.0, p.border);
     visuals.widgets.noninteractive.bg_fill = p.surface;
+    // Give commonmark's default code_block a visible edge (it uses noninteractive stroke).
+    visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, p.border);
+    visuals.widgets.noninteractive.corner_radius = CornerRadius::same(6);
     visuals.widgets.inactive.bg_fill = p.surface_2;
     visuals.widgets.hovered.bg_fill = p.hover;
     visuals.widgets.active.bg_fill = p.selected;
