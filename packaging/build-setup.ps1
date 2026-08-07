@@ -66,7 +66,7 @@ $iscc = @(
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 if (-not $iscc) {
-    Write-Host ">> Inno Setup not found — trying winget/choco..." -ForegroundColor Yellow
+    Write-Host ">> Inno Setup not found - trying winget/choco..." -ForegroundColor Yellow
     if (Get-Command choco -ErrorAction SilentlyContinue) {
         choco install innosetup -y --no-progress
     } elseif (Get-Command winget -ErrorAction SilentlyContinue) {
@@ -94,6 +94,6 @@ if (-not (Test-Path $setup)) {
 }
 Write-Host ""
 Write-Host "DONE" -ForegroundColor Green
-Write-Host "  Installer : $setup   (double-click to install; desktop + Start Menu)"
-Write-Host "  Portable  : dist\$PortableName   (single file, no install)"
+Write-Host ("  Installer : {0}   (double-click to install; desktop + Start Menu)" -f $setup)
+Write-Host ("  Portable  : dist\{0}   (single file, no install)" -f $PortableName)
 Write-Host ""
