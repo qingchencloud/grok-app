@@ -2,6 +2,24 @@
 
 All notable changes to **Grok Desktop** (`qingchencloud/grok-app`) are documented here.
 
+## [0.1.7] — 2026-08-07
+
+### Added
+- **Auto** permission mode (`session/set_mode` id `auto`) in the Shift+Tab cycle and mode picker — aligned with Grok CLI 1.0
+- Slash commands: `/auto`, `/workflow` (plus existing `/goal`, `/plan`)
+- ACP `authenticate` with `cached_token` after `initialize` (graceful if it fails)
+- Live model catalog from `_x.ai/models/update` and `session/new` models payload
+- `session/new` `_meta.yoloMode` / `_meta.autoMode` per CLI 1.0 ACP docs
+
+### Changed
+- Agent version now reads CLI 1.0 `_meta.agentVersion` when top-level `agentInfo` is absent
+- Mode cycle is **Normal → Auto → Plan → Always-Approve**
+- Switching modes also writes `[ui].permission_mode` in `~/.grok/config.toml` when present
+
+### Notes
+- Compatible with **Grok Build CLI 1.0.0**; core ACP chat path remains `grok agent stdio`
+- Install with **`GrokDesktop-Setup-0.1.7-windows-x64.exe`** when published
+
 ## [0.1.6] — 2026-07-29
 
 ### Added

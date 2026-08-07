@@ -77,6 +77,64 @@ pub fn invalidate_models_cache() {
     }
 }
 
+/// Merge a live ACP catalog (`_x.ai/models/update` / session/new models) into the
+/// in-memory cache so context windows and effort lists stay fresh during a session.
+pub fn merge_live_catalog(
+    entries: &[crate::acp::ModelCatalogEntry],
+    current_model_id: Option<&str>,
+) {
+    if entries.is_empty() {
+        return;
+    }
+    let mut cache = load_models_cache();
+    for e in entries {
+        let info = ModelInfo {
+            id: e.id.clone(),
+            name: e.name.clone(),
+            context_window: e.context_window.or_else(|| {
+                cache
+                    .models
+                    .get(&e.id)
+                    .and_then(|m| m.context_window)
+            }),
+            supports_reasoning_effort: e.supports_reasoning_effort
+                || cache
+                    .models
+                    .get(&e.id)
+                    .map(|m| m.supports_reasoning_effort)
+                    .unwrap_or(false),
+            reasoning_efforts: if e.reasoning_efforts.is_empty() {
+                cache
+                    .models
+                    .get(&e.id)
+                    .map(|m| m.reasoning_efforts.clone())
+                    .unwrap_or_default()
+            } else {
+                e.reasoning_efforts.clone()
+            },
+            default_effort: e.default_effort.clone().or_else(|| {
+                cache
+                    .models
+                    .get(&e.id)
+                    .and_then(|m| m.default_effort.clone())
+            }),
+            auto_compact_threshold_percent: cache
+                .models
+                .get(&e.id)
+                .and_then(|m| m.auto_compact_threshold_percent),
+        };
+        cache.models.insert(e.id.clone(), info);
+    }
+    if let Some(id) = current_model_id {
+        if !id.is_empty() {
+            cache.default_model_id = Some(id.to_string());
+        }
+    }
+    if let Ok(mut guard) = CACHE.lock() {
+        *guard = Some((Instant::now(), cache));
+    }
+}
+
 fn parse_models_cache_file(path: &PathBuf) -> Option<ModelsCache> {
     let raw = std::fs::read_to_string(path).ok()?;
     parse_models_cache_json(&raw, Some(path.clone()))

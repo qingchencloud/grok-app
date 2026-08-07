@@ -138,6 +138,27 @@ pub enum AgentEvent {
         max: Option<u64>,
         note: Option<String>,
     },
+    /// Live model catalog from `_x.ai/models/update` (CLI 1.0+).
+    ModelsUpdate {
+        current_model_id: Option<String>,
+        models: Vec<ModelCatalogEntry>,
+    },
+    /// Agent-reported prompt capabilities after `initialize`.
+    AgentCapabilities {
+        image: bool,
+        agent_version: String,
+    },
+}
+
+/// One model row from the live ACP catalog (or session/new `models`).
+#[derive(Debug, Clone)]
+pub struct ModelCatalogEntry {
+    pub id: String,
+    pub name: String,
+    pub context_window: Option<u64>,
+    pub supports_reasoning_effort: bool,
+    pub reasoning_efforts: Vec<String>,
+    pub default_effort: Option<String>,
 }
 
 #[derive(Debug, Clone)]

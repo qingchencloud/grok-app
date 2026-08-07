@@ -5,47 +5,85 @@ use std::path::{Path, PathBuf};
 const APP_DIR: &str = "GrokApp";
 const CONFIG_FILE: &str = "config.json";
 
-/// The three modes in Grok CLI's Shift+Tab cycle.
+/// Permission / execution modes aligned with Grok CLI 1.0 (`session/set_mode`).
 ///
-/// ACP uses these exact ids with `session/set_mode`.
+/// Shift+Tab cycle matches the TUI order (auto near the front of the cycle):
+/// **Normal → Auto → Plan → Always-Approve**.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentMode {
+    /// Ask mode (`default`) — prompt before non-readonly tools.
     Normal,
+    /// Classifier auto-allow for common safe work (`auto`).
+    Auto,
+    /// Plan first; do not edit files until approved (`plan`).
     Plan,
+    /// Always-approve / yolo (`bypassPermissions`).
     AlwaysApprove,
 }
 
 impl AgentMode {
-    pub const ALL: [Self; 3] = [Self::Normal, Self::Plan, Self::AlwaysApprove];
+    pub const ALL: [Self; 4] = [
+        Self::Normal,
+        Self::Auto,
+        Self::Plan,
+        Self::AlwaysApprove,
+    ];
 
+    /// ACP `modeId` / `session/set_mode` value.
     pub const fn id(self) -> &'static str {
         match self {
             Self::Normal => "default",
+            Self::Auto => "auto",
             Self::Plan => "plan",
             Self::AlwaysApprove => "bypassPermissions",
         }
     }
 
+    /// Preferable string for `~/.grok/config.toml` `[ui].permission_mode`.
+    pub const fn cli_permission_mode(self) -> &'static str {
+        match self {
+            Self::Normal => "default",
+            Self::Auto => "auto",
+            Self::Plan => "plan",
+            Self::AlwaysApprove => "always-approve",
+        }
+    }
+
     pub fn from_id(id: &str) -> Self {
         match id.trim().to_ascii_lowercase().as_str() {
+            "auto" => Self::Auto,
             "plan" => Self::Plan,
             "bypasspermissions" | "always-approve" | "always_approve" | "yolo" => {
                 Self::AlwaysApprove
             }
+            // CLI product names + ACP default
+            "default" | "ask" | "defaultmode" | "" => Self::Normal,
             _ => Self::Normal,
         }
     }
 
     pub const fn next(self) -> Self {
         match self {
-            Self::Normal => Self::Plan,
+            Self::Normal => Self::Auto,
+            Self::Auto => Self::Plan,
             Self::Plan => Self::AlwaysApprove,
             Self::AlwaysApprove => Self::Normal,
         }
     }
 
+    /// Host-side RPC auto-allow for `session/request_permission`.
+    /// Only full always-approve skips the UI; `auto` still escalates some tools.
     pub const fn always_approves(self) -> bool {
         matches!(self, Self::AlwaysApprove)
+    }
+
+    /// `_meta` flags for `session/new` (CLI 1.0 ACP docs).
+    pub fn session_new_meta(self) -> serde_json::Value {
+        match self {
+            Self::AlwaysApprove => serde_json::json!({ "yoloMode": true }),
+            Self::Auto => serde_json::json!({ "autoMode": true }),
+            Self::Normal | Self::Plan => serde_json::json!({}),
+        }
     }
 }
 
@@ -65,7 +103,7 @@ pub struct AppConfig {
     /// Kept for backward-compatible config migration. `permission_mode` is the
     /// authoritative value after load.
     pub always_approve: bool,
-    /// ACP session mode: `default` | `plan` | `bypassPermissions`.
+    /// ACP session mode: `default` | `auto` | `plan` | `bypassPermissions`.
     pub permission_mode: String,
     /// Extra args prepended before `stdio` (advanced).
     pub extra_agent_args: Vec<String>,
@@ -447,10 +485,23 @@ mod tests {
 
     #[test]
     fn grok_shift_tab_mode_cycle_is_stable() {
-        assert_eq!(AgentMode::Normal.next(), AgentMode::Plan);
+        assert_eq!(AgentMode::Normal.next(), AgentMode::Auto);
+        assert_eq!(AgentMode::Auto.next(), AgentMode::Plan);
         assert_eq!(AgentMode::Plan.next(), AgentMode::AlwaysApprove);
         assert_eq!(AgentMode::AlwaysApprove.next(), AgentMode::Normal);
         assert_eq!(AgentMode::AlwaysApprove.id(), "bypassPermissions");
+        assert_eq!(AgentMode::Auto.id(), "auto");
+        assert_eq!(AgentMode::from_id("auto"), AgentMode::Auto);
+        assert_eq!(AgentMode::from_id("ask"), AgentMode::Normal);
+        assert_eq!(AgentMode::from_id("always-approve"), AgentMode::AlwaysApprove);
+        assert_eq!(AgentMode::Auto.cli_permission_mode(), "auto");
+        assert!(!AgentMode::Auto.always_approves());
+        assert!(AgentMode::AlwaysApprove.session_new_meta()["yoloMode"]
+            .as_bool()
+            .unwrap_or(false));
+        assert!(AgentMode::Auto.session_new_meta()["autoMode"]
+            .as_bool()
+            .unwrap_or(false));
     }
 }
 

@@ -92,9 +92,11 @@ pub fn agent_mode_label(mode: crate::config::AgentMode) -> &'static str {
     use crate::config::AgentMode;
     match (current_locale(), mode) {
         (Locale::Zh, AgentMode::Normal) => "普通",
+        (Locale::Zh, AgentMode::Auto) => "自动",
         (Locale::Zh, AgentMode::Plan) => "规划",
         (Locale::Zh, AgentMode::AlwaysApprove) => "始终批准",
         (Locale::En, AgentMode::Normal) => "Normal",
+        (Locale::En, AgentMode::Auto) => "Auto",
         (Locale::En, AgentMode::Plan) => "Plan",
         (Locale::En, AgentMode::AlwaysApprove) => "Always-Approve",
     }
@@ -104,9 +106,11 @@ pub fn agent_mode_description(mode: crate::config::AgentMode) -> &'static str {
     use crate::config::AgentMode;
     match (current_locale(), mode) {
         (Locale::Zh, AgentMode::Normal) => "执行工具前按需询问",
+        (Locale::Zh, AgentMode::Auto) => "安全操作自动放行，其余再询问",
         (Locale::Zh, AgentMode::Plan) => "先制定方案，不修改文件",
         (Locale::Zh, AgentMode::AlwaysApprove) => "自动批准所有工具调用",
         (Locale::En, AgentMode::Normal) => "Ask before tools when needed",
+        (Locale::En, AgentMode::Auto) => "Auto-allow safe work; escalate the rest",
         (Locale::En, AgentMode::Plan) => "Plan first; do not edit files",
         (Locale::En, AgentMode::AlwaysApprove) => "Approve every tool call",
     }
@@ -622,6 +626,8 @@ pub struct Strings {
     pub slash_logs_desc: &'static str,
     pub slash_yolo_title: &'static str,
     pub slash_yolo_desc: &'static str,
+    pub slash_auto_title: &'static str,
+    pub slash_auto_desc: &'static str,
     pub slash_clear_title: &'static str,
     pub slash_clear_desc: &'static str,
     pub slash_compact_title: &'static str,
@@ -709,6 +715,8 @@ pub struct Strings {
     pub slash_plan_desc: &'static str,
     pub slash_goal_title: &'static str,
     pub slash_goal_desc: &'static str,
+    pub slash_workflow_title: &'static str,
+    pub slash_workflow_desc: &'static str,
     pub slash_help_title: &'static str,
     pub slash_help_desc: &'static str,
     // Settings — CLI / advanced residual
@@ -1110,8 +1118,10 @@ s! {
     slash_status_desc: "Connection / model / context summary", "显示连接 / 模型 / 上下文摘要",
     slash_logs_title: "Logs", "日志",
     slash_logs_desc: "Open runtime logs", "打开运行日志窗口",
-    slash_yolo_title: "Toggle auto-approve", "切换自动批准",
-    slash_yolo_desc: "Toggle --always-approve", "开/关 --always-approve",
+    slash_yolo_title: "Toggle always-approve", "切换始终批准",
+    slash_yolo_desc: "Toggle always-approve (bypassPermissions)", "开/关始终批准（bypassPermissions）",
+    slash_auto_title: "Toggle auto mode", "切换自动模式",
+    slash_auto_desc: "Classifier auto-allow for safe tools", "安全工具由分类器自动放行",
     slash_clear_title: "Clear view", "清空当前视图",
     slash_clear_desc: "Clear local timeline (does not delete disk session)",
         "清空本机时间线（不删磁盘会话）",
@@ -1205,8 +1215,10 @@ s! {
     slash_commands: "Commands", "指令",
     slash_plan_title: "Plan mode", "计划模式",
     slash_plan_desc: "Insert /plan hint", "插入 /plan 提示",
-    slash_goal_title: "Goal mode", "目标模式",
+    slash_goal_title: "Goal", "目标",
     slash_goal_desc: "Insert /goal hint", "插入 /goal 提示",
+    slash_workflow_title: "Workflow", "工作流",
+    slash_workflow_desc: "Insert /workflow hint", "插入 /workflow 提示",
     slash_help_title: "Help", "帮助",
     slash_help_desc: "List slash commands", "列出可用斜杠指令",
     current_effort: "Current", "当前",

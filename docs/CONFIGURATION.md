@@ -11,7 +11,7 @@
 | `cwd` | process cwd | Default working directory for sessions |
 | `model` | `grok-4.5` | Default model id (override in UI) |
 | `effort` | `medium` | `low` / `medium` / `high` → CLI reasoning effort |
-| `permission_mode` | `bypassPermissions` | Session mode: `default` (Normal), `plan`, or `bypassPermissions` (Always-Approve) |
+| `permission_mode` | `bypassPermissions` | Session mode: `default` (Normal), `auto`, `plan`, or `bypassPermissions` (Always-Approve) — CLI 1.0 |
 | `always_approve` | `true` | Legacy compatibility mirror; migrated into `permission_mode` |
 | `dark_mode` | `true` | Theme |
 | `ui_locale` | `en` | Manual language value (`en` or `zh`) |
@@ -29,10 +29,11 @@
 
 These are **defaults**, not secrets. Change them in **Settings** or by editing the JSON after quitting the app.
 
-The composer mode button and `Shift+Tab` cycle through **Normal → Plan →
-Always-Approve**. Existing sessions are switched live with ACP
-`session/set_mode`; a new or reloaded session receives the selected mode before
-its next prompt.
+The composer mode button and `Shift+Tab` cycle through **Normal → Auto → Plan →
+Always-Approve** (aligned with Grok CLI 1.0). Existing sessions are switched
+live with ACP `session/set_mode`; a new session also passes `_meta.yoloMode` /
+`_meta.autoMode` when applicable, then applies `session/set_mode` before the
+next prompt.
 
 ## CLI config (shared with Grok TUI)
 

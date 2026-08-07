@@ -223,20 +223,53 @@ impl AcpClient {
             }
         });
         let result = self.request("initialize", params).await?;
-        let agent_name = result
-            .pointer("/agentInfo/name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("grok")
-            .to_string();
-        let agent_version = result
-            .pointer("/agentInfo/version")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        *self.inner.agent_info.lock() = Some((agent_name, agent_version));
+        let (agent_name, agent_version) = parse_agent_identity(&result);
+        *self.inner.agent_info.lock() = Some((agent_name, agent_version.clone()));
 
-        // Note: do not send a generic `authenticated` notify — current grok
-        // agent logs "Method not found" for it. Auth is already via ~/.grok/auth.json.
+        let image = result
+            .pointer("/agentCapabilities/promptCapabilities/image")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let _ = self.inner.event_tx.send(AgentEvent::AgentCapabilities {
+            image,
+            agent_version: agent_version.clone(),
+        });
+        if !image {
+            let _ = self.inner.event_tx.send(AgentEvent::Log {
+                message: "CLI reports promptCapabilities.image=false; image blocks may still work via path attach".into(),
+            });
+        }
+
+        // CLI 1.0 advertises authMethods. Prefer explicit `authenticate` with the
+        // cached token so team/subscription meta is loaded; ignore failures —
+        // session/new still works when ~/.grok/auth.json is already valid.
+        if let Some(method_id) = preferred_auth_method_id(&result) {
+            match self
+                .request("authenticate", json!({ "methodId": method_id }))
+                .await
+            {
+                Ok(auth) => {
+                    if let Some(email) = auth.pointer("/_meta/email").and_then(|v| v.as_str()) {
+                        let _ = self.inner.event_tx.send(AgentEvent::Log {
+                            message: format!("authenticated as {email}"),
+                        });
+                    } else {
+                        let _ = self.inner.event_tx.send(AgentEvent::Log {
+                            message: format!("authenticate ok ({method_id})"),
+                        });
+                    }
+                }
+                Err(e) => {
+                    let _ = self.inner.event_tx.send(AgentEvent::Log {
+                        message: format!("authenticate skipped: {e:#}"),
+                    });
+                }
+            }
+        }
+
+        // Note: do not send `notifications/initialized` — CLI 1.0 logs
+        // "Method not found" for empty-params variants. Auth is via authenticate
+        // or ~/.grok/auth.json.
         Ok(())
     }
 
@@ -246,10 +279,17 @@ impl AcpClient {
     }
 
     async fn new_session_unlocked(&self, cwd: &str) -> Result<String> {
-        let params = json!({
+        let mode_id = self.inner.preferred_mode.lock().clone();
+        let mode = AgentMode::from_id(&mode_id);
+        let meta = mode.session_new_meta();
+        let mut params = json!({
             "cwd": cwd,
             "mcpServers": []
         });
+        // CLI 1.0 ACP: yoloMode / autoMode on session/new (in addition to set_mode).
+        if meta.as_object().map(|o| !o.is_empty()).unwrap_or(false) {
+            params["_meta"] = meta;
+        }
         let result = self.request("session/new", params).await?;
         let session_id = result
             .get("sessionId")
@@ -257,6 +297,9 @@ impl AcpClient {
             .ok_or_else(|| anyhow!("session/new missing sessionId: {result}"))?
             .to_string();
         *self.inner.session_id.lock() = Some(session_id.clone());
+        if let Some(ev) = models_update_from_session_models(result.get("models")) {
+            let _ = self.inner.event_tx.send(ev);
+        }
         let _ = self.inner.event_tx.send(AgentEvent::SessionCreated {
             session_id: session_id.clone(),
         });
@@ -872,6 +915,13 @@ impl ClientInner {
             return Ok(());
         }
         match method {
+            m if m == "_x.ai/models/update" || m.ends_with("/models/update") => {
+                if let Some(ev) = models_update_from_params(&params) {
+                    let _ = self.event_tx.send(ev);
+                } else {
+                    tracing::debug!("x.ai models update unparsed");
+                }
+            }
             m if m.starts_with("x.ai/") || m.starts_with("_x.ai/") => {
                 tracing::debug!("x.ai notification: {m}");
             }
@@ -880,6 +930,193 @@ impl ClientInner {
             }
         }
         Ok(())
+    }
+}
+
+/// Parse agent name/version from initialize (CLI 1.0 often omits top-level `agentInfo`).
+fn parse_agent_identity(result: &Value) -> (String, String) {
+    let agent_name = result
+        .pointer("/agentInfo/name")
+        .and_then(|v| v.as_str())
+        .or_else(|| result.pointer("/_meta/agentName").and_then(|v| v.as_str()))
+        .unwrap_or("grok")
+        .to_string();
+    let agent_version = result
+        .pointer("/agentInfo/version")
+        .and_then(|v| v.as_str())
+        .or_else(|| result.pointer("/_meta/agentVersion").and_then(|v| v.as_str()))
+        .unwrap_or("")
+        .to_string();
+    (agent_name, agent_version)
+}
+
+/// Prefer cached token when present; otherwise first advertised method.
+fn preferred_auth_method_id(init: &Value) -> Option<String> {
+    let methods = init.get("authMethods")?.as_array()?;
+    let mut first = None;
+    for m in methods {
+        let id = m.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        if id.is_empty() {
+            continue;
+        }
+        if first.is_none() {
+            first = Some(id.to_string());
+        }
+        if id == "cached_token" {
+            return Some(id.to_string());
+        }
+    }
+    init.pointer("/_meta/defaultAuthMethodId")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .or(first)
+}
+
+fn models_update_from_params(params: &Value) -> Option<AgentEvent> {
+    let current = params
+        .get("currentModelId")
+        .or_else(|| params.get("current_model_id"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let list = params
+        .get("availableModels")
+        .or_else(|| params.get("available_models"))
+        .and_then(|v| v.as_array())?;
+    let models = parse_model_catalog_entries(list);
+    if models.is_empty() && current.is_none() {
+        return None;
+    }
+    Some(AgentEvent::ModelsUpdate {
+        current_model_id: current,
+        models,
+    })
+}
+
+fn models_update_from_session_models(models_field: Option<&Value>) -> Option<AgentEvent> {
+    let m = models_field?;
+    let current = m
+        .get("currentModelId")
+        .or_else(|| m.get("current_model_id"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let list = m
+        .get("availableModels")
+        .or_else(|| m.get("available_models"))
+        .and_then(|v| v.as_array());
+    let models = list
+        .map(|arr| parse_model_catalog_entries(arr.as_slice()))
+        .unwrap_or_default();
+    if models.is_empty() && current.is_none() {
+        return None;
+    }
+    Some(AgentEvent::ModelsUpdate {
+        current_model_id: current,
+        models,
+    })
+}
+
+fn parse_model_catalog_entries(list: &[Value]) -> Vec<super::types::ModelCatalogEntry> {
+    use super::types::ModelCatalogEntry;
+    let mut out = Vec::new();
+    for item in list {
+        let id = item
+            .get("modelId")
+            .or_else(|| item.get("model_id"))
+            .or_else(|| item.get("id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        if id.is_empty() {
+            continue;
+        }
+        let name = item
+            .get("name")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .unwrap_or(&id)
+            .to_string();
+        let meta = item.get("_meta").unwrap_or(item);
+        let context_window = meta
+            .get("totalContextTokens")
+            .or_else(|| meta.get("context_window"))
+            .or_else(|| meta.get("contextWindow"))
+            .and_then(|v| {
+                v.as_u64()
+                    .or_else(|| v.as_f64().map(|f| f as u64))
+                    .or_else(|| v.as_i64().map(|i| i.max(0) as u64))
+            });
+        let supports_reasoning_effort = meta
+            .get("supportsReasoningEffort")
+            .or_else(|| meta.get("supports_reasoning_effort"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let mut reasoning_efforts = Vec::new();
+        let mut default_effort = None;
+        if let Some(arr) = meta
+            .get("reasoningEfforts")
+            .or_else(|| meta.get("reasoning_efforts"))
+            .and_then(|a| a.as_array())
+        {
+            for e in arr {
+                let eid = e
+                    .get("id")
+                    .or_else(|| e.get("value"))
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if eid.is_empty() {
+                    continue;
+                }
+                if e.get("default").and_then(|x| x.as_bool()).unwrap_or(false) {
+                    default_effort = Some(eid.clone());
+                }
+                reasoning_efforts.push(eid);
+            }
+        }
+        if default_effort.is_none() {
+            if let Some(re) = meta
+                .get("reasoningEffort")
+                .or_else(|| meta.get("reasoning_effort"))
+                .and_then(|v| v.as_str())
+            {
+                default_effort = Some(re.to_string());
+            }
+        }
+        out.push(ModelCatalogEntry {
+            id,
+            name,
+            context_window,
+            supports_reasoning_effort,
+            reasoning_efforts,
+            default_effort,
+        });
+    }
+    out
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::{parse_agent_identity, preferred_auth_method_id};
+    use serde_json::json;
+
+    #[test]
+    fn agent_identity_falls_back_to_meta() {
+        let (name, ver) = parse_agent_identity(&json!({
+            "_meta": { "agentVersion": "1.0.0" }
+        }));
+        assert_eq!(name, "grok");
+        assert_eq!(ver, "1.0.0");
+    }
+
+    #[test]
+    fn prefers_cached_token_auth_method() {
+        let id = preferred_auth_method_id(&json!({
+            "authMethods": [
+                { "id": "grok.com" },
+                { "id": "cached_token" }
+            ]
+        }));
+        assert_eq!(id.as_deref(), Some("cached_token"));
     }
 }
 

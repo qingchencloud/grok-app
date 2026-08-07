@@ -12,6 +12,8 @@ pub enum SlashAction {
     Logs,
     Status,
     ToggleYolo,
+    /// Toggle CLI `auto` permission mode (classifier).
+    ToggleAuto,
     ClearChat,
     CompactHint,
 }
@@ -54,9 +56,15 @@ pub const SLASH_ITEMS: &[SlashItem] = &[
     },
     SlashItem {
         name: "yolo",
-        title: "Toggle auto-approve",
-        desc: "Toggle --always-approve",
+        title: "Toggle always-approve",
+        desc: "Toggle always-approve (bypassPermissions)",
         action: SlashAction::ToggleYolo,
+    },
+    SlashItem {
+        name: "auto",
+        title: "Toggle auto mode",
+        desc: "Classifier auto-allow for safe tools",
+        action: SlashAction::ToggleAuto,
     },
     SlashItem {
         name: "clear",
@@ -78,8 +86,14 @@ pub const SLASH_ITEMS: &[SlashItem] = &[
     },
     SlashItem {
         name: "goal",
-        title: "Goal mode",
+        title: "Goal",
         desc: "Insert /goal hint",
+        action: SlashAction::InsertPrompt,
+    },
+    SlashItem {
+        name: "workflow",
+        title: "Workflow",
+        desc: "Insert /workflow hint",
         action: SlashAction::InsertPrompt,
     },
     SlashItem {
@@ -99,10 +113,12 @@ pub fn slash_labels(item: &SlashItem) -> (&'static str, &'static str) {
         "status" => (s.slash_status_title, s.slash_status_desc),
         "logs" => (s.slash_logs_title, s.slash_logs_desc),
         "yolo" => (s.slash_yolo_title, s.slash_yolo_desc),
+        "auto" => (s.slash_auto_title, s.slash_auto_desc),
         "clear" => (s.slash_clear_title, s.slash_clear_desc),
         "compact" => (s.slash_compact_title, s.slash_compact_desc),
         "plan" => (s.slash_plan_title, s.slash_plan_desc),
         "goal" => (s.slash_goal_title, s.slash_goal_desc),
+        "workflow" => (s.slash_workflow_title, s.slash_workflow_desc),
         "help" => (s.slash_help_title, s.slash_help_desc),
         _ => (item.title, item.desc),
     }

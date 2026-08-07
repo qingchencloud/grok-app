@@ -108,6 +108,8 @@ pub struct GrokApp {
     context_used: Option<u64>,
     context_max: Option<u64>,
     context_note: Option<String>,
+    /// Live model ids from ACP `_x.ai/models/update` (CLI 1.0+). Empty → use built-in list.
+    live_model_ids: Vec<String>,
 
     error_banner: Option<String>,
     scroll_to_bottom: bool,
@@ -219,17 +221,21 @@ impl GrokApp {
         let local_sessions = std::panic::catch_unwind(list_active_sessions).unwrap_or_default();
         let settings = SettingsState::new(&config);
 
-        // Sync the CLI's startup mode when it explicitly selects one of the
-        // three supported desktop modes.
+        // Sync the CLI's startup mode when config.toml names a known mode.
         let mut config = config;
         if settings.cli_toml.loaded {
+            let cli_mode = settings.cli_toml.permission_mode.as_str();
             if settings.cli_toml.yolo
-                || settings.cli_toml.permission_mode == "always-approve"
-                || settings.cli_toml.permission_mode == "bypassPermissions"
+                || cli_mode == "always-approve"
+                || cli_mode == "bypassPermissions"
             {
                 config.set_agent_mode(AgentMode::AlwaysApprove);
-            } else if settings.cli_toml.permission_mode == "plan" {
+            } else if cli_mode == "plan" {
                 config.set_agent_mode(AgentMode::Plan);
+            } else if cli_mode == "auto" {
+                config.set_agent_mode(AgentMode::Auto);
+            } else if cli_mode == "default" || cli_mode == "ask" {
+                config.set_agent_mode(AgentMode::Normal);
             }
             if !settings.cli_toml.default_model.is_empty() && config.model == "grok-4.5" {
                 // keep app model; user can still override
@@ -272,6 +278,7 @@ impl GrokApp {
             context_used: None,
             context_max: None,
             context_note: None,
+            live_model_ids: Vec::new(),
             error_banner: None,
             scroll_to_bottom: false,
             input_focus_request: true,
@@ -1981,6 +1988,48 @@ impl GrokApp {
                     self.agent_pid = self.client.lock().as_ref().and_then(|c| c.child_pid());
                     self.status = crate::i18n::t().status_connected.into();
                     self.logs.push(format!("已连接: {}", self.agent_label));
+                }
+                AgentEvent::AgentCapabilities {
+                    image,
+                    agent_version,
+                } => {
+                    if !agent_version.is_empty()
+                        && (self.agent_label.is_empty()
+                            || !self.agent_label.contains(agent_version.as_str()))
+                    {
+                        if self.agent_label.is_empty() || self.agent_label == "grok" {
+                            self.agent_label = format!("grok {agent_version}");
+                        } else if !self.agent_label.contains(&agent_version) {
+                            self.agent_label = format!("{} {agent_version}", self.agent_label);
+                        }
+                    }
+                    self.logs.push(format!(
+                        "agent capabilities: image={} version={agent_version}",
+                        if image { "yes" } else { "no" }
+                    ));
+                }
+                AgentEvent::ModelsUpdate {
+                    current_model_id,
+                    models,
+                } => {
+                    if !models.is_empty() {
+                        self.live_model_ids = models.iter().map(|m| m.id.clone()).collect();
+                        for m in &models {
+                            if let Some(w) = m.context_window {
+                                if m.id == self.config.model
+                                    || current_model_id.as_deref() == Some(m.id.as_str())
+                                {
+                                    self.context_max = Some(w);
+                                }
+                            }
+                        }
+                        crate::models_cache::merge_live_catalog(&models, current_model_id.as_deref());
+                    }
+                    if let Some(id) = current_model_id {
+                        if !id.is_empty() && self.config.model.trim().is_empty() {
+                            self.config.model = id;
+                        }
+                    }
                 }
                 AgentEvent::Usage { used, max, note } => {
                     if used.is_some() {
@@ -4706,6 +4755,12 @@ impl GrokApp {
         }
         self.config.set_agent_mode(mode);
         let _ = self.config.save();
+        // Keep shared CLI config.toml permission_mode in sync when possible.
+        if self.settings.cli_toml.loaded || self.settings.cli_toml.path.is_some() {
+            self.settings.cli_toml.permission_mode = mode.cli_permission_mode().into();
+            self.settings.cli_toml.yolo = mode.always_approves();
+            let _ = self.settings.cli_toml.save();
+        }
         self.status = crate::i18n::mode_switched(mode);
         self.timeline.push(TimelineItem::Status {
             id: Uuid::new_v4().to_string(),
@@ -4782,6 +4837,15 @@ impl GrokApp {
                     AgentMode::Normal
                 } else {
                     AgentMode::AlwaysApprove
+                };
+                self.set_agent_mode(next, ctx);
+            }
+            SlashAction::ToggleAuto => {
+                self.input.clear();
+                let next = if self.config.agent_mode() == AgentMode::Auto {
+                    AgentMode::Normal
+                } else {
+                    AgentMode::Auto
                 };
                 self.set_agent_mode(next, ctx);
             }
@@ -5276,6 +5340,7 @@ impl GrokApp {
                         3.0,
                         match current_mode {
                             AgentMode::Normal => theme::TEXT_3(),
+                            AgentMode::Auto => theme::SUCCESS(),
                             AgentMode::Plan => theme::ACCENT(),
                             AgentMode::AlwaysApprove => theme::WARNING(),
                         },
@@ -5285,6 +5350,7 @@ impl GrokApp {
                             .size(11.5)
                             .color(match current_mode {
                                 AgentMode::Normal => theme::TEXT_3(),
+                                AgentMode::Auto => theme::SUCCESS(),
                                 AgentMode::Plan => theme::ACCENT(),
                                 AgentMode::AlwaysApprove => theme::WARNING(),
                             }),
@@ -5425,12 +5491,24 @@ impl GrokApp {
                                         .size(11.0)
                                         .color(theme::TEXT_3()),
                                 );
-                                for model in MODELS {
+                                let model_choices: Vec<String> = if self.live_model_ids.is_empty()
+                                {
+                                    MODELS.iter().map(|s| (*s).to_string()).collect()
+                                } else {
+                                    let mut ids = self.live_model_ids.clone();
+                                    if !self.config.model.trim().is_empty()
+                                        && !ids.iter().any(|m| m == &self.config.model)
+                                    {
+                                        ids.insert(0, self.config.model.clone());
+                                    }
+                                    ids
+                                };
+                                for model in model_choices {
                                     if ui
-                                        .selectable_label(self.config.model == *model, *model)
+                                        .selectable_label(self.config.model == model, &model)
                                         .clicked()
                                     {
-                                        picked_model = Some((*model).to_string());
+                                        picked_model = Some(model);
                                         ui.close_menu();
                                     }
                                 }

@@ -124,6 +124,8 @@ pub fn session_update_to_events(update: &Value) -> Vec<AgentEvent> {
                 mode_id,
             }]
         }
+        // CLI 1.0: slash command list refresh — no UI event needed (host has its own palette).
+        "available_commands_update" | "available_commands" => Vec::new(),
         // Official / Grok: turn finished (host must unlock even if RPC races)
         "turn_completed" | "prompt_complete" | "prompt_completed" | "turn_complete" => {
             let reason = update
