@@ -148,6 +148,54 @@ pub enum AgentEvent {
         image: bool,
         agent_version: String,
     },
+    /// Live slash / tool command list (`available_commands_update`).
+    AvailableCommands {
+        commands: Vec<AgentCommand>,
+    },
+    /// Structured Q&A from `x.ai/ask_user_question` (blocks the tool until answered).
+    AskUserQuestion {
+        request_id: Value,
+        session_id: String,
+        tool_call_id: String,
+        questions: Vec<UserQuestion>,
+        /// `default` | `plan`
+        mode: String,
+    },
+    /// Product announcements from `_x.ai/announcements/update`.
+    Announcements {
+        items: Vec<AnnouncementItem>,
+    },
+}
+
+/// One slash command advertised by the agent.
+#[derive(Debug, Clone)]
+pub struct AgentCommand {
+    pub name: String,
+    pub description: String,
+    pub input_hint: Option<String>,
+}
+
+/// One question inside `x.ai/ask_user_question`.
+#[derive(Debug, Clone)]
+pub struct UserQuestion {
+    pub question: String,
+    pub options: Vec<UserQuestionOption>,
+    pub multi_select: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct UserQuestionOption {
+    pub label: String,
+    pub description: String,
+    pub preview: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnnouncementItem {
+    pub id: String,
+    pub title: String,
+    pub message: String,
+    pub severity: String,
 }
 
 /// One model row from the live ACP catalog (or session/new `models`).

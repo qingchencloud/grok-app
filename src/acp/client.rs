@@ -513,6 +513,17 @@ impl AcpClient {
         self.write_response(request_id, result).await
     }
 
+    /// Answer `x.ai/ask_user_question` with an accepted payload.
+    pub async fn respond_user_question(&self, request_id: Value, result: Value) -> Result<()> {
+        self.write_response(request_id, result).await
+    }
+
+    /// Dismiss `x.ai/ask_user_question` without answers.
+    pub async fn cancel_user_question(&self, request_id: Value) -> Result<()> {
+        self.write_response(request_id, json!({ "outcome": "cancelled" }))
+            .await
+    }
+
     pub async fn shutdown(&self) {
         let _ = self.cancel().await;
         // Drop stdin to signal EOF
@@ -759,6 +770,34 @@ impl ClientInner {
                     }
                 }
             }
+            // Structured Q&A (CLI ask_user_question tool) — blocks until client answers.
+            "x.ai/ask_user_question" | "_x.ai/ask_user_question" => {
+                let session_id = params
+                    .get("sessionId")
+                    .or_else(|| params.get("session_id"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let tool_call_id = params
+                    .get("toolCallId")
+                    .or_else(|| params.get("tool_call_id"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let mode = params
+                    .get("mode")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("default")
+                    .to_string();
+                let questions = parse_user_questions(params.get("questions"));
+                let _ = self.event_tx.send(AgentEvent::AskUserQuestion {
+                    request_id: id,
+                    session_id,
+                    tool_call_id,
+                    questions,
+                    mode,
+                });
+            }
             "fs/write_text_file" | "fs/writeTextFile" => {
                 let path = params
                     .get("path")
@@ -922,6 +961,11 @@ impl ClientInner {
                     tracing::debug!("x.ai models update unparsed");
                 }
             }
+            m if m == "_x.ai/announcements/update" || m.ends_with("/announcements/update") => {
+                if let Some(ev) = announcements_from_params(&params) {
+                    let _ = self.event_tx.send(ev);
+                }
+            }
             m if m.starts_with("x.ai/") || m.starts_with("_x.ai/") => {
                 tracing::debug!("x.ai notification: {m}");
             }
@@ -931,6 +975,105 @@ impl ClientInner {
         }
         Ok(())
     }
+}
+
+fn parse_user_questions(raw: Option<&Value>) -> Vec<super::types::UserQuestion> {
+    use super::types::{UserQuestion, UserQuestionOption};
+    let Some(arr) = raw.and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for q in arr {
+        let question = q
+            .get("question")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        if question.is_empty() {
+            continue;
+        }
+        let multi_select = q
+            .get("multiSelect")
+            .or_else(|| q.get("multi_select"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let options = q
+            .get("options")
+            .and_then(|v| v.as_array())
+            .map(|opts| {
+                opts.iter()
+                    .filter_map(|o| {
+                        let label = o
+                            .get("label")
+                            .and_then(|v| v.as_str())
+                            .filter(|s| !s.is_empty())?
+                            .to_string();
+                        let description = o
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let preview = o
+                            .get("preview")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        Some(UserQuestionOption {
+                            label,
+                            description,
+                            preview,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        out.push(UserQuestion {
+            question,
+            options,
+            multi_select,
+        });
+    }
+    out
+}
+
+fn announcements_from_params(params: &Value) -> Option<AgentEvent> {
+    use super::types::AnnouncementItem;
+    let arr = params
+        .get("announcements")
+        .or_else(|| params.get("items"))
+        .and_then(|v| v.as_array())?;
+    let mut items = Vec::new();
+    for a in arr {
+        let id = a
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        if id.is_empty() {
+            continue;
+        }
+        let title = a
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let message = a
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let severity = a
+            .get("severity")
+            .and_then(|v| v.as_str())
+            .unwrap_or("info")
+            .to_string();
+        items.push(AnnouncementItem {
+            id,
+            title,
+            message,
+            severity,
+        });
+    }
+    Some(AgentEvent::Announcements { items })
 }
 
 /// Parse agent name/version from initialize (CLI 1.0 often omits top-level `agentInfo`).

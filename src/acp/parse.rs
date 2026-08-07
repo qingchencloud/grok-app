@@ -124,8 +124,44 @@ pub fn session_update_to_events(update: &Value) -> Vec<AgentEvent> {
                 mode_id,
             }]
         }
-        // CLI 1.0: slash command list refresh — no UI event needed (host has its own palette).
-        "available_commands_update" | "available_commands" => Vec::new(),
+        "available_commands_update" | "available_commands" => {
+            let commands = update
+                .get("availableCommands")
+                .or_else(|| update.get("available_commands"))
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|c| {
+                            let name = c
+                                .get("name")
+                                .and_then(|v| v.as_str())
+                                .filter(|s| !s.is_empty())?
+                                .to_string();
+                            let description = c
+                                .get("description")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let input_hint = c
+                                .pointer("/input/hint")
+                                .or_else(|| c.get("hint"))
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            Some(super::types::AgentCommand {
+                                name,
+                                description,
+                                input_hint,
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if commands.is_empty() {
+                Vec::new()
+            } else {
+                vec![AgentEvent::AvailableCommands { commands }]
+            }
+        }
         // Official / Grok: turn finished (host must unlock even if RPC races)
         "turn_completed" | "prompt_complete" | "prompt_completed" | "turn_complete" => {
             let reason = update

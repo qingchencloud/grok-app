@@ -2,6 +2,17 @@
 
 All notable changes to **Grok Desktop** (`qingchencloud/grok-app`) are documented here.
 
+## [0.1.8] — 2026-08-07
+
+### Added
+- **Dynamic slash palette** merges host commands with agent `available_commands_update` (CLI tools such as `/usage`, `/goal`, workflows)
+- **`x.ai/ask_user_question` modal** — structured single/multi-select answers, plan-mode Chat/Skip, dismiss
+- **Usage chip** in the composer bar (context tokens + refresh via `/usage`)
+- **Announcement banner** from `_x.ai/announcements/update` (dismissible per id)
+
+### Notes
+- Requires Grok Build CLI 1.0+ for full behavior
+
 ## [0.1.7] — 2026-08-07
 
 ### Added

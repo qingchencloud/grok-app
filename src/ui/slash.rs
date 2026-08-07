@@ -1,6 +1,7 @@
 //! Slash command palette — type `/` in the composer to pick actions.
 
 use super::theme;
+use crate::acp::AgentCommand;
 use egui::{Align, Color32, Frame, Layout, Margin, RichText, Sense, Ui, Vec2};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,6 +17,8 @@ pub enum SlashAction {
     ToggleAuto,
     ClearChat,
     CompactHint,
+    /// Request a live usage/cost refresh from the agent (`/usage`).
+    Usage,
 }
 
 #[derive(Debug, Clone)]
@@ -26,9 +29,18 @@ pub struct SlashItem {
     pub action: SlashAction,
 }
 
+/// Owned palette row (host builtin or agent-advertised).
+#[derive(Debug, Clone)]
+pub struct SlashEntry {
+    pub name: String,
+    pub title: String,
+    pub desc: String,
+    pub action: SlashAction,
+    /// True when sourced from agent `available_commands_update`.
+    pub from_agent: bool,
+}
+
 /// Built-in host commands + common agent-facing prompts.
-/// Static slash registry (English command tokens). Titles/descs are English defaults;
-/// UI should prefer localized labels via `crate::i18n` when painting the palette.
 pub const SLASH_ITEMS: &[SlashItem] = &[
     SlashItem {
         name: "new",
@@ -47,6 +59,12 @@ pub const SLASH_ITEMS: &[SlashItem] = &[
         title: "Status",
         desc: "Connection / model / context summary",
         action: SlashAction::Status,
+    },
+    SlashItem {
+        name: "usage",
+        title: "Usage",
+        desc: "Ask agent for token usage / cost",
+        action: SlashAction::Usage,
     },
     SlashItem {
         name: "logs",
@@ -104,13 +122,14 @@ pub const SLASH_ITEMS: &[SlashItem] = &[
     },
 ];
 
-/// Localized title/description for a slash item (command `name` stays English).
+/// Localized title/description for a host slash item.
 pub fn slash_labels(item: &SlashItem) -> (&'static str, &'static str) {
     let s = crate::i18n::t();
     match item.name {
         "new" => (s.slash_new_title, s.slash_new_desc),
         "settings" => (s.slash_settings_title, s.slash_settings_desc),
         "status" => (s.slash_status_title, s.slash_status_desc),
+        "usage" => (s.slash_usage_title, s.slash_usage_desc),
         "logs" => (s.slash_logs_title, s.slash_logs_desc),
         "yolo" => (s.slash_yolo_title, s.slash_yolo_desc),
         "auto" => (s.slash_auto_title, s.slash_auto_desc),
@@ -124,24 +143,60 @@ pub fn slash_labels(item: &SlashItem) -> (&'static str, &'static str) {
     }
 }
 
+fn host_entry(item: &SlashItem) -> SlashEntry {
+    let (title, desc) = slash_labels(item);
+    SlashEntry {
+        name: item.name.to_string(),
+        title: title.to_string(),
+        desc: desc.to_string(),
+        action: item.action,
+        from_agent: false,
+    }
+}
+
+/// Merge host builtins with agent-advertised commands (host wins on name clash).
+pub fn merged_entries(agent_cmds: &[AgentCommand]) -> Vec<SlashEntry> {
+    let mut out: Vec<SlashEntry> = SLASH_ITEMS.iter().map(host_entry).collect();
+    let host_names: std::collections::HashSet<String> =
+        out.iter().map(|e| e.name.to_ascii_lowercase()).collect();
+    for c in agent_cmds {
+        let name = c.name.trim();
+        if name.is_empty() {
+            continue;
+        }
+        if host_names.contains(&name.to_ascii_lowercase()) {
+            continue;
+        }
+        let desc = if c.description.trim().is_empty() {
+            c.input_hint.clone().unwrap_or_default()
+        } else {
+            c.description.clone()
+        };
+        out.push(SlashEntry {
+            name: name.to_string(),
+            title: name.to_string(),
+            desc,
+            action: SlashAction::InsertPrompt,
+            from_agent: true,
+        });
+    }
+    out
+}
+
 /// Parse filter from composer text when it starts with `/`.
-/// Returns (filter fragment without leading slash, true if palette should show).
 pub fn slash_filter(input: &str) -> Option<String> {
     let t = input.trim_start();
     if !t.starts_with('/') {
         return None;
     }
-    // Only while still on the first token (no space after command yet) or only `/`
     let rest = &t[1..];
     if rest.contains('\n') {
         return None;
     }
-    // Hide after user finished a full command + space and continues typing args
     if let Some((cmd, after)) = rest.split_once(' ') {
         if !cmd.is_empty() && !after.is_empty() {
             return None;
         }
-        // `/foo ` still show? hide after space
         if rest.ends_with(' ') && !cmd.is_empty() {
             return None;
         }
@@ -154,28 +209,29 @@ pub fn slash_filter(input: &str) -> Option<String> {
     Some(filter)
 }
 
-pub fn filtered_items(filter: &str) -> Vec<&'static SlashItem> {
+pub fn filtered_entries(filter: &str, agent_cmds: &[AgentCommand]) -> Vec<SlashEntry> {
     let f = filter.trim().to_ascii_lowercase();
-    SLASH_ITEMS
-        .iter()
+    merged_entries(agent_cmds)
+        .into_iter()
         .filter(|it| {
             if f.is_empty() {
                 return true;
             }
-            it.name.contains(&f)
+            it.name.to_ascii_lowercase().contains(&f)
                 || it.title.to_ascii_lowercase().contains(&f)
                 || it.desc.to_ascii_lowercase().contains(&f)
         })
         .collect()
 }
 
-/// Draw palette above composer. Returns selected item if clicked / Enter.
+/// Draw palette above composer. Returns selected entry if clicked.
 pub fn draw_palette(
     ui: &mut Ui,
     filter: &str,
     selected_idx: &mut usize,
-) -> Option<&'static SlashItem> {
-    let items = filtered_items(filter);
+    agent_cmds: &[AgentCommand],
+) -> Option<SlashEntry> {
+    let items = filtered_entries(filter, agent_cmds);
     if items.is_empty() {
         return None;
     }
@@ -183,7 +239,7 @@ pub fn draw_palette(
         *selected_idx = items.len() - 1;
     }
 
-    let mut picked: Option<&'static SlashItem> = None;
+    let mut picked: Option<SlashEntry> = None;
     let w = ui.available_width();
 
     Frame::NONE
@@ -209,7 +265,8 @@ pub fn draw_palette(
             );
             ui.add_space(4.0);
 
-            for (i, item) in items.iter().enumerate() {
+            let max_show = 12.min(items.len());
+            for (i, item) in items.iter().take(max_show).enumerate() {
                 let active = i == *selected_idx;
                 let fill = if active {
                     theme::SELECTED()
@@ -232,10 +289,11 @@ pub fn draw_palette(
                             },
                         );
                     }
+                    let badge = if item.from_agent { " · cli" } else { "" };
                     ui.painter().text(
                         egui::pos2(rect.left() + 10.0, rect.center().y - 7.0),
                         egui::Align2::LEFT_CENTER,
-                        format!("/{}", item.name),
+                        format!("/{}{badge}", item.name),
                         egui::FontId::proportional(13.0),
                         if active {
                             theme::ACCENT()
@@ -243,11 +301,10 @@ pub fn draw_palette(
                             theme::TEXT()
                         },
                     );
-                    let (title, desc) = slash_labels(item);
                     ui.painter().text(
                         egui::pos2(rect.left() + 10.0, rect.center().y + 9.0),
                         egui::Align2::LEFT_CENTER,
-                        format!("{title} — {desc}"),
+                        format!("{} — {}", item.title, item.desc),
                         egui::FontId::proportional(11.0),
                         theme::TEXT_3(),
                     );
@@ -257,8 +314,15 @@ pub fn draw_palette(
                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                 }
                 if resp.clicked() {
-                    picked = Some(*item);
+                    picked = Some(item.clone());
                 }
+            }
+            if items.len() > max_show {
+                ui.label(
+                    RichText::new(format!("… +{} more", items.len() - max_show))
+                        .size(11.0)
+                        .color(theme::TEXT_3()),
+                );
             }
 
             ui.add_space(2.0);
@@ -279,8 +343,9 @@ pub fn handle_keys(
     ctx: &egui::Context,
     filter: &str,
     selected_idx: &mut usize,
-) -> Option<&'static SlashItem> {
-    let items = filtered_items(filter);
+    agent_cmds: &[AgentCommand],
+) -> Option<SlashEntry> {
+    let items = filtered_entries(filter, agent_cmds);
     if items.is_empty() {
         return None;
     }
@@ -300,10 +365,9 @@ pub fn handle_keys(
             };
         }
         if i.key_pressed(egui::Key::Enter) && !i.modifiers.shift {
-            pick = Some(items[*selected_idx]);
+            pick = Some(items[*selected_idx].clone());
         }
         if i.key_pressed(egui::Key::Escape) {
-            // Caller clears input slash mode via None + flag
             pick = None;
         }
     });

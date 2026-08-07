@@ -69,6 +69,27 @@ fn inbound_request_not_misparsed_as_response() {
 }
 
 #[test]
+fn parses_available_commands_update() {
+    let update = serde_json::json!({
+        "sessionUpdate": "available_commands_update",
+        "availableCommands": [
+            { "name": "usage", "description": "Show usage", "input": { "hint": null } },
+            { "name": "goal", "description": "Set a goal", "input": { "hint": "<objective>" } }
+        ]
+    });
+    let events = session_update_to_events(&update);
+    match events.as_slice() {
+        [AgentEvent::AvailableCommands { commands }] => {
+            assert_eq!(commands.len(), 2);
+            assert_eq!(commands[0].name, "usage");
+            assert_eq!(commands[1].name, "goal");
+            assert_eq!(commands[1].input_hint.as_deref(), Some("<objective>"));
+        }
+        other => panic!("expected AvailableCommands, got {other:?}"),
+    }
+}
+
+#[test]
 fn parses_grok_current_mode_update() {
     let update = serde_json::json!({
         "sessionUpdate": "current_mode_update",

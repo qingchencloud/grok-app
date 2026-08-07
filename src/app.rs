@@ -1,5 +1,8 @@
 use crate::acp::parse::build_history_bootstrap;
-use crate::acp::{AcpClient, AgentEvent, ChatImage, PermissionOption, TimelineItem};
+use crate::acp::{
+    AcpClient, AgentCommand, AgentEvent, AnnouncementItem, ChatImage, PermissionOption,
+    TimelineItem, UserQuestion,
+};
 use crate::attachments::{self, PendingImage};
 use crate::config::{
     auth_credentials_changed, auth_file_stamp, effort_label, is_authentication_required_error,
@@ -23,7 +26,7 @@ use crate::stream::SmoothStream;
 use crate::ui::chat_view;
 use crate::ui::icons::{self, IconKind};
 use crate::ui::settings::{draw_settings, SettingsState, SettingsTab};
-use crate::ui::slash::{self, SlashAction};
+use crate::ui::slash::{self, SlashAction, SlashEntry};
 use crate::ui::theme;
 use crate::ui::widgets::{
     self, context_meter, ghost_button, hairline, nav_row, primary_button, project_row, quiet_link,
@@ -110,6 +113,14 @@ pub struct GrokApp {
     context_note: Option<String>,
     /// Live model ids from ACP `_x.ai/models/update` (CLI 1.0+). Empty → use built-in list.
     live_model_ids: Vec<String>,
+    /// Agent-advertised slash commands (`available_commands_update`).
+    agent_commands: Vec<AgentCommand>,
+    /// Pending structured Q&A from `x.ai/ask_user_question`.
+    pending_user_question: Option<PendingUserQuestion>,
+    /// Live product announcements (CLI 1.0 banner).
+    announcements: Vec<AnnouncementItem>,
+    /// Dismissed announcement ids (session-local).
+    dismissed_announcements: HashSet<String>,
 
     error_banner: Option<String>,
     scroll_to_bottom: bool,
@@ -190,6 +201,44 @@ pub struct GrokApp {
 
 struct NewChatDraft {
     cwd: String,
+}
+
+/// In-progress `x.ai/ask_user_question` interaction.
+struct PendingUserQuestion {
+    request_id: serde_json::Value,
+    #[allow(dead_code)]
+    session_id: String,
+    tool_call_id: String,
+    questions: Vec<UserQuestion>,
+    mode: String,
+    /// Per-question selected option indices.
+    selected: Vec<Vec<usize>>,
+    /// Per-question freeform "Other" text.
+    freeform: Vec<String>,
+    /// Per-question: freeform row selected.
+    freeform_on: Vec<bool>,
+}
+
+impl PendingUserQuestion {
+    fn new(
+        request_id: serde_json::Value,
+        session_id: String,
+        tool_call_id: String,
+        questions: Vec<UserQuestion>,
+        mode: String,
+    ) -> Self {
+        let n = questions.len();
+        Self {
+            request_id,
+            session_id,
+            tool_call_id,
+            selected: (0..n).map(|_| Vec::new()).collect(),
+            freeform: (0..n).map(|_| String::new()).collect(),
+            freeform_on: (0..n).map(|_| false).collect(),
+            questions,
+            mode,
+        }
+    }
 }
 
 impl GrokApp {
@@ -279,6 +328,10 @@ impl GrokApp {
             context_max: None,
             context_note: None,
             live_model_ids: Vec::new(),
+            agent_commands: Vec::new(),
+            pending_user_question: None,
+            announcements: Vec::new(),
+            dismissed_announcements: HashSet::new(),
             error_banner: None,
             scroll_to_bottom: false,
             input_focus_request: true,
@@ -1821,6 +1874,14 @@ impl GrokApp {
                 });
             }
         }
+        if let Some(q) = self.pending_user_question.take() {
+            if let Some(client) = self.client.lock().clone() {
+                let rid = q.request_id;
+                self.rt.spawn(async move {
+                    let _ = client.cancel_user_question(rid).await;
+                });
+            }
+        }
         self.mark_running_tools_terminal("cancelled");
         self.store.clear_live_tool();
         let _ = ctx;
@@ -2030,6 +2091,43 @@ impl GrokApp {
                             self.config.model = id;
                         }
                     }
+                }
+                AgentEvent::AvailableCommands { commands } => {
+                    self.agent_commands = commands;
+                    self.logs.push(format!(
+                        "agent slash commands: {}",
+                        self.agent_commands.len()
+                    ));
+                }
+                AgentEvent::AskUserQuestion {
+                    request_id,
+                    session_id,
+                    tool_call_id,
+                    questions,
+                    mode,
+                } => {
+                    // If a previous question is still open, cancel it first.
+                    if let Some(old) = self.pending_user_question.take() {
+                        if let Some(client) = self.client.lock().clone() {
+                            let rid = old.request_id;
+                            self.rt.spawn(async move {
+                                let _ = client.cancel_user_question(rid).await;
+                            });
+                        }
+                    }
+                    self.pending_user_question = Some(PendingUserQuestion::new(
+                        request_id,
+                        session_id,
+                        tool_call_id.clone(),
+                        questions,
+                        mode,
+                    ));
+                    self.status = crate::i18n::t().user_question_title.into();
+                    self.logs
+                        .push(format!("ask_user_question: {tool_call_id}"));
+                }
+                AgentEvent::Announcements { items } => {
+                    self.announcements = items;
                 }
                 AgentEvent::Usage { used, max, note } => {
                     if used.is_some() {
@@ -4147,6 +4245,8 @@ impl GrokApp {
                         ui.set_max_width(content_w);
                         ui.set_min_width(content_w.min(ui.available_width()));
 
+                        self.ui_announcement_banner(ui);
+
                         // Stable turn status strip — pure store projection
                         let mut phase = self.store.turn_phase();
                         if phase == TurnPhase::Idle
@@ -4796,7 +4896,7 @@ impl GrokApp {
         self.scroll_to_bottom = true;
     }
 
-    fn apply_slash(&mut self, item: &slash::SlashItem, ctx: &egui::Context) {
+    fn apply_slash(&mut self, item: &SlashEntry, ctx: &egui::Context) {
         match item.action {
             SlashAction::InsertPrompt => {
                 self.input = format!("/{} ", item.name);
@@ -4831,6 +4931,10 @@ impl GrokApp {
                 });
                 self.scroll_to_bottom = true;
             }
+            SlashAction::Usage => {
+                self.input = "/usage".into();
+                self.send_prompt(ctx);
+            }
             SlashAction::ToggleYolo => {
                 self.input.clear();
                 let next = if self.config.agent_mode() == AgentMode::AlwaysApprove {
@@ -4858,12 +4962,133 @@ impl GrokApp {
                 self.status = crate::i18n::t().status_cleared_view.into();
             }
             SlashAction::CompactHint => {
-                // Send as agent-facing slash so CLI can handle if supported
                 self.input = "/compact".into();
                 self.send_prompt(ctx);
             }
         }
         self.slash_selected = 0;
+    }
+
+    fn request_usage_refresh(&mut self, ctx: &egui::Context) {
+        if !self.store.is_connected() {
+            self.error_banner = Some(crate::i18n::t().err_not_connected.into());
+            return;
+        }
+        if self.prompt_active() {
+            self.error_banner = Some(crate::i18n::t().err_busy.into());
+            return;
+        }
+        self.input = "/usage".into();
+        self.send_prompt(ctx);
+    }
+
+    fn submit_user_question(
+        &mut self,
+        outcome: &str,
+        ctx: &egui::Context,
+    ) {
+        let Some(q) = self.pending_user_question.take() else {
+            return;
+        };
+        let mut answers = serde_json::Map::new();
+        let mut annotations = serde_json::Map::new();
+        for (i, question) in q.questions.iter().enumerate() {
+            let mut labels: Vec<String> = q.selected
+                .get(i)
+                .map(|idxs| {
+                    idxs.iter()
+                        .filter_map(|j| question.options.get(*j).map(|o| o.label.clone()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let free_on = q.freeform_on.get(i).copied().unwrap_or(false);
+            let free_text = q
+                .freeform
+                .get(i)
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default();
+            let has_free = free_on && !free_text.is_empty();
+            if labels.is_empty() && has_free {
+                labels.push("Other".into());
+            }
+            if labels.is_empty() {
+                continue;
+            }
+            answers.insert(
+                question.question.clone(),
+                serde_json::Value::Array(labels.into_iter().map(serde_json::Value::String).collect()),
+            );
+            if has_free {
+                annotations.insert(
+                    question.question.clone(),
+                    serde_json::json!({ "notes": free_text }),
+                );
+            } else if !question.multi_select {
+                if let Some(idxs) = q.selected.get(i) {
+                    if let Some(&j) = idxs.first() {
+                        if let Some(preview) =
+                            question.options.get(j).and_then(|o| o.preview.clone())
+                        {
+                            annotations.insert(
+                                question.question.clone(),
+                                serde_json::json!({ "preview": preview }),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        let result = match outcome {
+            "accepted" => {
+                let mut obj = serde_json::json!({
+                    "outcome": "accepted",
+                    "answers": answers,
+                });
+                if !annotations.is_empty() {
+                    obj["annotations"] = serde_json::Value::Object(annotations);
+                }
+                obj
+            }
+            "chat_about_this" => {
+                let mut partial = serde_json::Map::new();
+                for (k, v) in &answers {
+                    if let Some(arr) = v.as_array() {
+                        if let Some(first) = arr.first().and_then(|x| x.as_str()) {
+                            partial.insert(k.clone(), serde_json::Value::String(first.into()));
+                        }
+                    }
+                }
+                serde_json::json!({
+                    "outcome": "chat_about_this",
+                    "partial_answers": partial,
+                })
+            }
+            "skip_interview" => {
+                let mut partial = serde_json::Map::new();
+                for (k, v) in &answers {
+                    if let Some(arr) = v.as_array() {
+                        if let Some(first) = arr.first().and_then(|x| x.as_str()) {
+                            partial.insert(k.clone(), serde_json::Value::String(first.into()));
+                        }
+                    }
+                }
+                serde_json::json!({
+                    "outcome": "skip_interview",
+                    "partial_answers": partial,
+                })
+            }
+            _ => serde_json::json!({ "outcome": "cancelled" }),
+        };
+        if let Some(client) = self.client.lock().clone() {
+            let rid = q.request_id;
+            let repaint = ctx.clone();
+            self.rt.spawn(async move {
+                let _ = client.respond_user_question(rid, result).await;
+                repaint.request_repaint();
+            });
+        }
+        self.status = crate::i18n::t().ready.into();
+        self.touch_activity();
     }
 
     /// Resolve on-disk session dir for current ACP session.
@@ -4948,17 +5173,22 @@ impl GrokApp {
         }
 
         // Slash palette above composer
-        let mut slash_pick: Option<&'static slash::SlashItem> = None;
+        let mut slash_pick: Option<SlashEntry> = None;
         let mut dismiss_slash = false;
         if let Some(filter) = slash::slash_filter(&self.input) {
             if ctx.input(|i| i.key_pressed(Key::Escape)) {
                 dismiss_slash = true;
             } else {
-                if let Some(item) = slash::handle_keys(ctx, &filter, &mut self.slash_selected) {
+                let agent_cmds = self.agent_commands.clone();
+                if let Some(item) =
+                    slash::handle_keys(ctx, &filter, &mut self.slash_selected, &agent_cmds)
+                {
                     // Enter — but don't also send as message this frame
                     slash_pick = Some(item);
                 }
-                if let Some(item) = slash::draw_palette(ui, &filter, &mut self.slash_selected) {
+                if let Some(item) =
+                    slash::draw_palette(ui, &filter, &mut self.slash_selected, &agent_cmds)
+                {
                     slash_pick = Some(item);
                 }
                 ui.add_space(6.0);
@@ -4970,7 +5200,7 @@ impl GrokApp {
         }
         if let Some(item) = slash_pick {
             // Block Enter-send for InsertPrompt path this frame
-            self.apply_slash(item, ctx);
+            self.apply_slash(&item, ctx);
             return;
         }
 
@@ -5329,6 +5559,34 @@ impl GrokApp {
                                 .size(12.0)
                                 .color(theme::TEXT_3()),
                         );
+                    }
+
+                    // Usage chip (context + /usage refresh)
+                    let usage_label = match (self.context_used, self.context_max) {
+                        (Some(u), Some(m)) if m > 0 => {
+                            format!("{}%", ((u as f64 / m as f64) * 100.0).round() as u64)
+                        }
+                        (Some(u), _) => format_tokens_one(u),
+                        _ => crate::i18n::t().usage_chip.to_string(),
+                    };
+                    let usage_resp = ui
+                        .add(
+                            egui::Label::new(
+                                RichText::new(usage_label)
+                                    .size(11.5)
+                                    .color(theme::TEXT_2()),
+                            )
+                            .sense(egui::Sense::click()),
+                        )
+                        .on_hover_text(self.context_note.clone().unwrap_or_else(|| {
+                            format!(
+                                "{} · {}",
+                                crate::i18n::t().usage_chip,
+                                self.context_label()
+                            )
+                        }));
+                    if usage_resp.clicked() {
+                        self.request_usage_refresh(ctx);
                     }
 
                     let current_mode = self.config.agent_mode();
@@ -6069,6 +6327,212 @@ impl GrokApp {
                 });
             });
     }
+
+    fn ui_announcement_banner(&mut self, ui: &mut Ui) {
+        let visible: Vec<_> = self
+            .announcements
+            .iter()
+            .filter(|a| !self.dismissed_announcements.contains(&a.id))
+            .cloned()
+            .collect();
+        if visible.is_empty() {
+            return;
+        }
+        let mut dismiss_id: Option<String> = None;
+        for ann in visible.iter().take(2) {
+            let fill = if ann.severity.eq_ignore_ascii_case("critical")
+                || ann.severity.eq_ignore_ascii_case("error")
+            {
+                theme::WARNING().gamma_multiply(0.25)
+            } else {
+                theme::ACCENT().gamma_multiply(0.18)
+            };
+            Frame::NONE
+                .fill(fill)
+                .corner_radius(8.0)
+                .inner_margin(Margin::symmetric(10, 8))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.vertical(|ui| {
+                            if !ann.title.is_empty() {
+                                ui.label(
+                                    RichText::new(&ann.title)
+                                        .strong()
+                                        .size(12.5)
+                                        .color(theme::TEXT()),
+                                );
+                            }
+                            if !ann.message.is_empty() {
+                                ui.label(
+                                    RichText::new(&ann.message)
+                                        .size(12.0)
+                                        .color(theme::TEXT_2()),
+                                );
+                            }
+                        });
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if ghost_button(ui, crate::i18n::t().announcement_dismiss).clicked() {
+                                dismiss_id = Some(ann.id.clone());
+                            }
+                        });
+                    });
+                });
+            ui.add_space(6.0);
+        }
+        if let Some(id) = dismiss_id {
+            self.dismissed_announcements.insert(id);
+        }
+    }
+
+    fn ui_user_question_modal(&mut self, ctx: &egui::Context) {
+        if self.pending_user_question.is_none() {
+            return;
+        }
+        let mut submit: Option<&'static str> = None;
+        let plan_mode = self
+            .pending_user_question
+            .as_ref()
+            .map(|q| q.mode.eq_ignore_ascii_case("plan"))
+            .unwrap_or(false);
+
+        egui::Window::new(crate::i18n::t().user_question_title)
+            .id(egui::Id::new("win_user_question"))
+            .collapsible(false)
+            .resizable(true)
+            .default_width(480.0)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                let Some(pending) = self.pending_user_question.as_mut() else {
+                    return;
+                };
+                ui.set_min_width(420.0);
+                ui.label(
+                    RichText::new(format!("id: {}", pending.tool_call_id))
+                        .size(11.0)
+                        .color(theme::TEXT_DIM()),
+                );
+                ui.add_space(8.0);
+                egui::ScrollArea::vertical()
+                    .max_height(360.0)
+                    .show(ui, |ui| {
+                        for (qi, question) in pending.questions.iter().enumerate() {
+                            ui.label(
+                                RichText::new(&question.question)
+                                    .strong()
+                                    .size(14.0)
+                                    .color(theme::TEXT()),
+                            );
+                            ui.add_space(4.0);
+                            if question.multi_select {
+                                for (oi, opt) in question.options.iter().enumerate() {
+                                    let selected = pending
+                                        .selected
+                                        .get(qi)
+                                        .map(|s| s.contains(&oi))
+                                        .unwrap_or(false);
+                                    let mut on = selected;
+                                    if ui
+                                        .checkbox(
+                                            &mut on,
+                                            RichText::new(&opt.label).size(13.0),
+                                        )
+                                        .changed()
+                                    {
+                                        let slot = &mut pending.selected[qi];
+                                        if on {
+                                            if !slot.contains(&oi) {
+                                                slot.push(oi);
+                                            }
+                                        } else {
+                                            slot.retain(|x| *x != oi);
+                                        }
+                                    }
+                                    if !opt.description.is_empty() {
+                                        ui.label(
+                                            RichText::new(&opt.description)
+                                                .size(11.5)
+                                                .color(theme::TEXT_3()),
+                                        );
+                                    }
+                                }
+                            } else {
+                                let current = pending
+                                    .selected
+                                    .get(qi)
+                                    .and_then(|s| s.first().copied());
+                                for (oi, opt) in question.options.iter().enumerate() {
+                                    if ui
+                                        .radio(current == Some(oi), &opt.label)
+                                        .clicked()
+                                    {
+                                        pending.selected[qi] = vec![oi];
+                                        pending.freeform_on[qi] = false;
+                                    }
+                                    if !opt.description.is_empty() {
+                                        ui.label(
+                                            RichText::new(&opt.description)
+                                                .size(11.5)
+                                                .color(theme::TEXT_3()),
+                                        );
+                                    }
+                                    if let Some(preview) = &opt.preview {
+                                        if current == Some(oi) && !preview.is_empty() {
+                                            ui.label(
+                                                RichText::new(preview)
+                                                    .size(11.0)
+                                                    .color(theme::TEXT_2())
+                                                    .italics(),
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            // Freeform / Other
+                            let free_on = &mut pending.freeform_on[qi];
+                            if ui
+                                .checkbox(free_on, crate::i18n::t().user_question_other)
+                                .changed()
+                                && *free_on
+                                && !question.multi_select
+                            {
+                                pending.selected[qi].clear();
+                            }
+                            if pending.freeform_on[qi] {
+                                ui.add(
+                                    TextEdit::singleline(&mut pending.freeform[qi])
+                                        .desired_width(f32::INFINITY)
+                                        .hint_text(crate::i18n::t().user_question_other),
+                                );
+                            }
+                            ui.add_space(12.0);
+                            hairline(ui);
+                            ui.add_space(8.0);
+                        }
+                    });
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if primary_button(ui, crate::i18n::t().user_question_submit, true).clicked()
+                    {
+                        submit = Some("accepted");
+                    }
+                    if plan_mode {
+                        if ghost_button(ui, crate::i18n::t().user_question_chat).clicked() {
+                            submit = Some("chat_about_this");
+                        }
+                        if ghost_button(ui, crate::i18n::t().user_question_skip).clicked() {
+                            submit = Some("skip_interview");
+                        }
+                    }
+                    if ghost_button(ui, crate::i18n::t().user_question_cancel).clicked() {
+                        submit = Some("cancelled");
+                    }
+                });
+            });
+
+        if let Some(outcome) = submit {
+            self.submit_user_question(outcome, ctx);
+        }
+    }
 }
 
 fn short_id(id: &str) -> String {
@@ -6308,6 +6772,7 @@ impl eframe::App for GrokApp {
         self.handle_settings_ui(ctx);
         self.ui_logs(ctx);
         self.ui_permission_modal(ctx);
+        self.ui_user_question_modal(ctx);
         self.ui_update_modal(ctx);
         self.ui_update_badge(ctx);
         self.ui_rename_dialog(ctx);
